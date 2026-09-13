@@ -34,7 +34,7 @@ Pensado para enseñar y aprender animación: dibujas vectores (o importas SVG y 
 ---
 
 ## 1. Puesta en marcha
-![](assets/20260913_015438_02mapa-de-la-interfaz.png)
+![](assets/02mapa-de-la-interfaz.png)
 VectorMotion es una app almacenada en un único archivo `index.html`. Funciona en cualquier navegador moderno (Chrome o Edge recomendados. No necesita instalación, servidor ni internet.
 
 Al abrir aparece un lienzo vacío, si existe un autoguardado de una sesión anterior la app ofrece restaurarlo (ver [§19](#-19-guardar-autoguardado-y-proyectos)).
