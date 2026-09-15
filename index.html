@@ -57,11 +57,17 @@ label{color:var(--txt2); font-size:12px;}
 .menu button{display:block; width:100%; text-align:left; border:none; background:none; padding:7px 10px; border-radius:5px;}
 .menu button:hover{background:var(--accent); color:#fff;}
 .menu hr{border:none; border-top:1px solid var(--border); margin:5px 0;}
+/* Menú de rutas: posición fija para salir del contexto de overflow del panel */
+#routeMenu{
+  position:fixed; z-index:500; min-width:200px;
+  max-height:60vh; overflow-y:auto;
+}
 
 /* ---- Panel de capas ---- */
 #layersPanel{
   grid-area:layers; background:var(--panel); border-right:1px solid var(--border);
   display:flex; flex-direction:column; overflow:hidden;
+  position:relative; /* necesario para el handle de redimensionado */
 }
 .panel-title{
   padding:8px 10px; font-size:11px; font-weight:600; letter-spacing:.8px;
@@ -97,7 +103,33 @@ label{color:var(--txt2); font-size:12px;}
 #canvasArea.panning{cursor:grabbing;}
 #rulerX{position:absolute; top:0; left:22px; right:0; height:22px; width:calc(100% - 22px); z-index:6; pointer-events:none;}
 #rulerY{position:absolute; top:22px; left:0; width:22px; height:calc(100% - 22px); z-index:6; pointer-events:none;}
-#rulerCorner{position:absolute; top:0; left:0; width:22px; height:22px; background:var(--panel); border-right:1px solid var(--border); border-bottom:1px solid var(--border); z-index:7;}
+#rulerCorner{
+  position:absolute; top:0; left:0; width:22px; height:22px;
+  background:var(--panel); border-right:1px solid var(--border); border-bottom:1px solid var(--border);
+  z-index:8; cursor:crosshair; user-select:none;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .15s;
+}
+#rulerCorner:hover{background:#2a2c35;}
+#rulerCorner::after{content:''; width:6px; height:6px; border-left:1px solid var(--accent2); border-bottom:1px solid var(--accent2); opacity:.7;}
+/* Líneas guía de origen de reglas */
+#rulerOriginH{
+  position:absolute; left:22px; right:0; height:1px;
+  background:var(--accent2); opacity:.7; z-index:9; pointer-events:none; display:none;
+}
+#rulerOriginV{
+  position:absolute; top:22px; bottom:0; width:1px;
+  background:var(--accent2); opacity:.7; z-index:9; pointer-events:none; display:none;
+}
+/* Handle de redimensionado del panel izquierdo */
+#layerResizeHandle{
+  position:absolute; top:0; right:-4px; width:8px; bottom:0;
+  cursor:col-resize; z-index:20; background:transparent;
+  transition:background .15s;
+}
+#layerResizeHandle:hover,#layerResizeHandle.dragging{
+  background:rgba(124,92,255,.45);
+}
 #zoomHud{
   position:absolute; bottom:10px; left:10px; z-index:5; display:flex; gap:5px; align-items:center;
   background:rgba(31,33,40,.9); border:1px solid var(--border); border-radius:6px; padding:4px 8px;
@@ -310,6 +342,7 @@ body.lcol-collapsed #colStrip{display:block;}
 
 <!-- ============ PANEL DE CAPAS ============ -->
 <div id="layersPanel">
+  <div id="layerResizeHandle" title="Arrastra para redimensionar el panel"></div>
   <div id="colStrip"><button class="mini" id="btnColR" title="Expandir columna">⏵</button></div>
   <div class="panel-title" data-sec="layersList"><span><span class="chev">▾</span>Capas</span>
     <span>
@@ -328,21 +361,20 @@ body.lcol-collapsed #colStrip{display:block;}
   <div class="panel-title" data-sec="routesList"><span><span class="chev">▾</span>Rutas de animación</span>
     <span>
       <button class="mini" id="btnRoutesEye" title="Mostrar todas las rutas en el lienzo">👁</button>
-      <div class="menu-wrap" style="display:inline-block">
-        <button class="mini" id="btnRouteAdd" title="Añadir ruta predefinida o desde el trazado seleccionado">＋</button>
-        <div class="menu left" id="routeMenu">
-          <button data-rp="lr">Línea →</button><button data-rp="rl">Línea ←</button>
-          <button data-rp="ud">Línea ↓</button><button data-rp="du">Línea ↑</button>
-          <button data-rp="diag">Diagonal</button><button data-rp="circle">Círculo</button>
-          <button data-rp="square">Cuadrado</button><button data-rp="eight">Ocho</button>
-          <button data-rp="wave">Onda</button><button data-rp="zigzag">Zigzag</button>
-          <button data-rp="bounce">Rebote</button><button data-rp="spiral">Espiral</button>
-          <hr><button data-rp="fromsel">Desde el trazado seleccionado</button>
-        </div>
-      </div>
+      <button class="mini" id="btnRouteAdd" title="Añadir ruta predefinida o desde el trazado seleccionado">＋</button>
     </span>
   </div>
   <div id="routesList" class="secBody"></div>
+</div>
+<!-- Menú de rutas: fuera del panel para evitar el clipping por overflow:hidden -->
+<div id="routeMenu" class="menu">
+  <button data-rp="lr">Línea →</button><button data-rp="rl">Línea ←</button>
+  <button data-rp="ud">Línea ↓</button><button data-rp="du">Línea ↑</button>
+  <button data-rp="diag">Diagonal</button><button data-rp="circle">Círculo</button>
+  <button data-rp="square">Cuadrado</button><button data-rp="eight">Ocho</button>
+  <button data-rp="wave">Onda</button><button data-rp="zigzag">Zigzag</button>
+  <button data-rp="bounce">Rebote</button><button data-rp="spiral">Espiral</button>
+  <hr><button data-rp="fromsel">Desde el trazado seleccionado</button>
 </div>
 
 <!-- ============ LIENZO ============ -->
@@ -352,7 +384,9 @@ body.lcol-collapsed #colStrip{display:block;}
   </div>
   <canvas id="rulerX"></canvas>
   <canvas id="rulerY"></canvas>
-  <div id="rulerCorner"></div>
+  <div id="rulerOriginH"></div>
+  <div id="rulerOriginV"></div>
+  <div id="rulerCorner" title="Arrastra para mover el origen de las reglas · Doble clic para restablecer"></div>
   <div id="zoomHud">
     <button class="mini" id="zoomOut">−</button>
     <span id="zoomPct" style="min-width:42px;text-align:center">100%</span>
@@ -439,7 +473,8 @@ const S = {
   penPts:[], penActive:false,
   nodeEdit:null,   // {id|routeId, subs:[{nodes:[{x,y,hin,hout,smooth}],closed}], sel:{si,ni}}
   grid:{show:false, snap:false, size:20},
-  showRoutes:false, routeHover:null, onion:false, speed:1, abA:null, abB:null
+  showRoutes:false, routeHover:null, onion:false, speed:1, abA:null, abB:null,
+  rulerOX:0, rulerOY:0  // offset del origen de las reglas en unidades del lienzo
 };
 const DEF_BASE = {tx:0,ty:0,rot:0,sx:1,sy:1,skx:0,sky:0,opacity:1,mp:0,draw:100};
 const ANIM_PROPS = [
@@ -839,34 +874,57 @@ function drawRulers(){
   const W=area.clientWidth-22, H=area.clientHeight-22;
   const dpr=window.devicePixelRatio||1;
   const step=niceStep(50/S.zoom);
-  const font='10px sans-serif', bg='#1f2128', fg='#8b8e99', ln='#33363f';
+  const font='10px sans-serif', bg='#1f2128', fg='#8b8e99', ln='#33363f', ac='#00c2a8';
+  // Posición en píxeles del origen (0,0) del lienzo con el offset de la regla
+  const originScreenX = S.panX + S.rulerOX * S.zoom - 22; // px en el canvas del rulerX
+  const originScreenY = S.panY + S.rulerOY * S.zoom - 22; // px en el canvas del rulerY
+
   rx.width=W*dpr; rx.height=22*dpr; rx.style.width=W+'px'; rx.style.height='22px';
   let c=rx.getContext('2d'); c.scale(dpr,dpr);
   c.fillStyle=bg; c.fillRect(0,0,W,22);
   c.strokeStyle=ln; c.beginPath(); c.moveTo(0,21.5); c.lineTo(W,21.5); c.stroke();
   c.fillStyle=fg; c.font=font; c.strokeStyle=ln;
-  const u0=Math.floor((-(S.panX-22))/S.zoom/step)*step;
+  // u0: primera marca visible en unidades del lienzo relativas al origen de la regla
+  const u0=Math.floor((-(S.panX-22)/S.zoom - S.rulerOX)/step)*step;
   for(let u=u0;;u+=step){
-    const x=S.panX+u*S.zoom-22;
+    const x=S.panX+(u+S.rulerOX)*S.zoom-22;
     if(x>W)break; if(x<-40)continue;
-    c.beginPath(); c.moveTo(x,14); c.lineTo(x,22); c.stroke();
+    const isOrigin=(u===0);
+    c.strokeStyle=isOrigin?ac:ln;
+    c.beginPath(); c.moveTo(x,isOrigin?8:14); c.lineTo(x,22); c.stroke();
+    c.fillStyle=isOrigin?ac:fg;
     c.fillText(fmt(u),x+3,11);
+    c.strokeStyle=ln; c.fillStyle=fg;
     const sub=step/5;
-    for(let k=1;k<5;k++){ const xs=x+k*sub*S.zoom; c.beginPath(); c.moveTo(xs,18); c.lineTo(xs,22); c.stroke(); }
+    for(let k=1;k<5;k++){ const xs=x+k*sub*S.zoom; if(xs<0||xs>W)continue; c.beginPath(); c.moveTo(xs,18); c.lineTo(xs,22); c.stroke(); }
   }
+  // Triángulo indicador del origen en la regla X
+  if(originScreenX>=0 && originScreenX<=W){
+    c.fillStyle=ac; c.beginPath(); c.moveTo(originScreenX,22); c.lineTo(originScreenX-4,14); c.lineTo(originScreenX+4,14); c.closePath(); c.fill();
+  }
+
   ry.width=22*dpr; ry.height=H*dpr; ry.style.width='22px'; ry.style.height=H+'px';
   c=ry.getContext('2d'); c.scale(dpr,dpr);
   c.fillStyle=bg; c.fillRect(0,0,22,H);
   c.strokeStyle=ln; c.beginPath(); c.moveTo(21.5,0); c.lineTo(21.5,H); c.stroke();
   c.fillStyle=fg; c.font=font;
-  const v0=Math.floor((-(S.panY-22))/S.zoom/step)*step;
+  const v0=Math.floor((-(S.panY-22)/S.zoom - S.rulerOY)/step)*step;
   for(let u=v0;;u+=step){
-    const y=S.panY+u*S.zoom-22;
+    const y=S.panY+(u+S.rulerOY)*S.zoom-22;
     if(y>H)break; if(y<-40)continue;
-    c.beginPath(); c.moveTo(14,y); c.lineTo(22,y); c.stroke();
-    c.save(); c.translate(11,y+3); c.rotate(-Math.PI/2); c.fillText(fmt(u),-c.measureText(fmt(u)).width,0); c.restore();
+    const isOrigin=(u===0);
+    c.strokeStyle=isOrigin?ac:ln;
+    c.beginPath(); c.moveTo(isOrigin?8:14,y); c.lineTo(22,y); c.stroke();
+    c.save(); c.translate(11,y+3); c.rotate(-Math.PI/2);
+    c.fillStyle=isOrigin?ac:fg;
+    c.fillText(fmt(u),-c.measureText(fmt(u)).width,0); c.restore();
+    c.strokeStyle=ln; c.fillStyle=fg;
     const sub=step/5;
-    for(let k=1;k<5;k++){ const ys=y+k*sub*S.zoom; c.beginPath(); c.moveTo(18,ys); c.lineTo(22,ys); c.stroke(); }
+    for(let k=1;k<5;k++){ const ys=y+k*sub*S.zoom; if(ys<0||ys>H)continue; c.beginPath(); c.moveTo(18,ys); c.lineTo(22,ys); c.stroke(); }
+  }
+  // Triángulo indicador del origen en la regla Y
+  if(originScreenY>=0 && originScreenY<=H){
+    c.fillStyle=ac; c.beginPath(); c.moveTo(22,originScreenY); c.lineTo(14,originScreenY-4); c.lineTo(14,originScreenY+4); c.closePath(); c.fill();
   }
 }
 function zoomAt(f,cx,cy){
@@ -1629,9 +1687,129 @@ function loadUI(){
   }
   if(u.lcol) document.body.classList.add('lcol-collapsed');
   if(u.tlh){ document.body.style.gridTemplateRows=`44px 1fr ${clamp(u.tlh,140,600)}px`; }
+  if(u.lpw){
+    const w=clamp(u.lpw,140,500);
+    document.body.style.gridTemplateColumns=`${w}px 1fr 250px`;
+    $('#timeline').style.gridTemplateColumns=`${w}px 1fr`;
+  }
   const a=localStorage.getItem('vm_auto');
   if(a&&+a>0){ $('#autoSel').value=a; $('#autoSel').onchange({target:{value:a}}); }
 }
+
+/* ---- Handle de redimensionado del panel izquierdo ---- */
+(()=>{
+  const handle=$('#layerResizeHandle');
+  let startX, startW;
+  handle.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    startX=e.clientX;
+    startW=document.body.getBoundingClientRect().left + // 0
+           parseInt(getComputedStyle(document.body).gridTemplateColumns.split(' ')[0]) || 230;
+    // Obtener ancho actual del panel
+    startW = $('#layersPanel').getBoundingClientRect().width;
+    handle.classList.add('dragging');
+    handle.setPointerCapture(e.pointerId);
+    document.body.style.userSelect='none';
+  });
+  handle.addEventListener('pointermove', e=>{
+    if(!handle.classList.contains('dragging')) return;
+    const w=clamp(startW+(e.clientX-startX), 140, 500);
+    document.body.style.gridTemplateColumns=`${w}px 1fr 250px`;
+    $('#timeline').style.gridTemplateColumns=`${w}px 1fr`;
+    updateView();
+  });
+  handle.addEventListener('pointerup', e=>{
+    if(!handle.classList.contains('dragging')) return;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect='';
+    const w=clamp(parseInt(document.body.style.gridTemplateColumns)||230, 140, 500);
+    saveUI({lpw: w});
+  });
+})();
+
+/* ---- Menú de rutas con posición fija (evita clipping) ---- */
+$('#btnRouteAdd').onclick=e=>{
+  e.stopPropagation();
+  const m=$('#routeMenu');
+  if(m.classList.contains('open')){ m.classList.remove('open'); return; }
+  const r=e.currentTarget.getBoundingClientRect();
+  m.style.top=(r.bottom+4)+'px';
+  m.style.left=r.left+'px';
+  m.classList.add('open');
+};
+$('#routeMenu').addEventListener('click',e=>{
+  const k=e.target.dataset&&e.target.dataset.rp; if(!k)return;
+  $('#routeMenu').classList.remove('open');
+  snapshot();
+  if(k==='fromsel'){
+    const l=selLayer();
+    if(!l||l.type!=='path'){ showHint('Selecciona una capa de trazado para convertirla en ruta'); return; }
+    addRoute(l.attrs.d,l.name);
+  } else {
+    const r=addRoute(presetRoute(k),ROUTE_NAMES[k]);
+    if(S.selSet.size) assignRoute(r);
+  }
+  refreshPanels(); applyFrame(S.T);
+});
+
+/* ---- Origen de reglas arrastrables (estilo Photoshop/Illustrator) ---- */
+(()=>{
+  const corner=$('#rulerCorner');
+  const guideH=$('#rulerOriginH');
+  const guideV=$('#rulerOriginV');
+  let dragging=false;
+
+  function showGuides(screenX, screenY){
+    // screenX, screenY son posiciones relativas al área (ya sin las 22px de regla)
+    guideH.style.top=(screenY+22)+'px';
+    guideV.style.left=(screenX+22)+'px';
+    guideH.style.display='block';
+    guideV.style.display='block';
+  }
+  function hideGuides(){
+    guideH.style.display='none';
+    guideV.style.display='none';
+  }
+
+  corner.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    dragging=true;
+    corner.setPointerCapture(e.pointerId);
+    corner.style.cursor='crosshair';
+    // Mostrar guías desde la posición inicial (esquina)
+    showGuides(0, 0);
+  });
+
+  corner.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const r=area.getBoundingClientRect();
+    // Posición del cursor relativa al área del lienzo (sin las 22px de regla)
+    const px=e.clientX - r.left - 22;
+    const py=e.clientY - r.top - 22;
+    showGuides(px, py);
+    // Convertir posición de pantalla a coordenadas del lienzo: donde el cursor apunta
+    // El origen nuevo = posición canvas del cursor = (px - S.panX + 22) / S.zoom
+    // Pero queremos que la regla muestre 0 en ese punto, así que:
+    // valor_en_regla = (coord_canvas) - rulerOX = 0  →  rulerOX = coord_canvas
+    S.rulerOX = (px - S.panX + 22) / S.zoom;
+    S.rulerOY = (py - S.panY + 22) / S.zoom;
+    drawRulers();
+  });
+
+  corner.addEventListener('pointerup', e=>{
+    if(!dragging) return;
+    dragging=false;
+    corner.style.cursor='';
+    hideGuides();
+    drawRulers();
+  });
+
+  corner.addEventListener('dblclick', ()=>{
+    S.rulerOX=0; S.rulerOY=0;
+    drawRulers();
+    showHint('Origen de reglas restablecido a (0, 0)');
+  });
+})();
 
 function routeMarkup(d,editing){
   let h=`<path d="${esc(d)}" fill="none" stroke="#ffb454" stroke-width="${1/S.zoom}" stroke-dasharray="${5/S.zoom}"${editing?` data-rpath="1" style="pointer-events:stroke;stroke-opacity:.9" stroke-width="${3/S.zoom}"`:' style="pointer-events:none"'}/>`;
@@ -1686,21 +1864,6 @@ function presetRoute(kind){
   return P;
 }
 const ROUTE_NAMES={lr:'Línea →',rl:'Línea ←',ud:'Línea ↓',du:'Línea ↑',diag:'Diagonal',circle:'Círculo',square:'Cuadrado',eight:'Ocho',wave:'Onda',zigzag:'Zigzag',bounce:'Rebote',spiral:'Espiral'};
-$('#btnRouteAdd').onclick=e=>{ e.stopPropagation(); $('#routeMenu').classList.toggle('open'); };
-$('#routeMenu').addEventListener('click',e=>{
-  const k=e.target.dataset&&e.target.dataset.rp; if(!k)return;
-  $('#routeMenu').classList.remove('open');
-  snapshot();
-  if(k==='fromsel'){
-    const l=selLayer();
-    if(!l||l.type!=='path'){ showHint('Selecciona una capa de trazado para convertirla en ruta'); return; }
-    addRoute(l.attrs.d,l.name);
-  } else {
-    const r=addRoute(presetRoute(k),ROUTE_NAMES[k]);
-    if(S.selSet.size) assignRoute(r);
-  }
-  renderRoutesPanel(); drawOverlay();
-});
 $('#btnRoutesEye').onclick=function(){ S.showRoutes=!S.showRoutes; this.classList.toggle('active',S.showRoutes); drawOverlay(); };
 function renderRoutesPanel(){
   const el=$('#routesList'); if(!el)return;
