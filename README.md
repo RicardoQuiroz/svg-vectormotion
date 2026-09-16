@@ -42,7 +42,7 @@ Al abrir aparece un lienzo vacío, si existe un autoguardado de una sesión ante
 ---
 
 ## 🗺️ 2. Mapa de la interfaz
-
+![](assets/02mapa-de-la-interfaz2.png)
 <div align="center">
   <img src="./02mapa-de-la-interfaz.png" alt="02mapa-de-la-interfaz" width="100%">
 </div>
@@ -76,12 +76,9 @@ Cada forma nueva se convierte en una capa con nombre editable. Tras dibujar, la 
 ---
 
 ## 4. Selección y transformación
+![](assets/03tool-select.png)
 
 Con la herramienta **Selección (V)**:
-
-<div align="left">
-  <img src="./tool-seleccionar.png" alt="02mapa-de-la-interfaz" width="170">
-</div>
 
 - ℹ️ **Clic** selecciona; **Shift/Ctrl+clic** añade o quita de la selección múltiple. `Esc` deselecciona.
 - 🔘 **Arrastrar** el objeto lo mueve (con imán a la cuadrícula si está activo). Flechas del teclado mueven 1 px; con `Shift`, 10 px.
@@ -98,7 +95,7 @@ Con la herramienta **Selección (V)**:
 ---
 
 ## 🕸️ 5. Edición de nodos Bézier
-
+![](assets/04nodos-bezier.png)
 Activa la herramienta **Nodos (A)** con un trazado seleccionado (las formas primitivas se convierten a trazado automáticamente, con confirmación si tienen animación de geometría).
 
 - ⚓ **Arrastra un ancla** (cuadrado) para moverla; sus manejadores la acompañan.
@@ -115,7 +112,7 @@ Los nodos redondeados indican curva suave; los cuadrados, esquina. Si el trazado
 ---
 
 ## 📚 6. Capas
-
+![](assets/05capas.png)
 El panel **Capas** lista los objetos de arriba (delante) hacia abajo (detrás).
 
 - ℹ️ **Clic**: seleccionar (Shift/Ctrl para múltiple). **Doble clic**: renombrar.
@@ -128,7 +125,7 @@ Las capas de tipo **grupo/importado** (🧩) se transforman y animan como un tod
 ---
 
 ## 🔑 7. Animación por keyframes
-
+![](assets/06keyframes.png)
 El modelo es el clásico de After Effects/SVGator: cada propiedad animable de cada capa tiene su propia pista de **keyframes** (rombos ◆); entre dos claves el valor se **interpola** con la curva de easing de la clave de salida.
 
 ### Propiedades animables
@@ -162,7 +159,7 @@ El modelo es el clásico de After Effects/SVGator: cada propiedad animable de ca
 ---
 
 ## 8. Easing y editor de curvas
-
+![](assets/07easying.png)
 El *easing* define la aceleración del cambio entre una clave y la siguiente. Se asigna **por keyframe** (a la clave de salida del tramo) en el popup del rombo:
 
 - ⏱️ **Lineal** — velocidad constante (robótico).
@@ -184,7 +181,7 @@ Y ocho curvas avanzadas de la familia Penner (las mismas que popularizó GSAP):
 - 👤 **Personalizada…** — abre el **editor de curvas**.
 
 ### El editor de curvas
-
+![](assets/07easying-personalizada.png)
 Al elegir "Personalizada…" aparece una gráfica: el eje horizontal es el **tiempo** del tramo (0→1) y el vertical el **progreso** del valor (0→1). La diagonal punteada es el movimiento lineal de referencia.
 
 - 🚩 Arrastra el manejador **violeta** (control de salida) y el **rojo** (control de llegada). La curva y el lienzo se actualizan en vivo.
@@ -196,7 +193,7 @@ Para leer la curva con estudiantes: pendiente = velocidad. Plana al inicio = arr
 ---
 
 ## 📅 9. La línea de tiempo a fondo
-
+![](assets/08timeline.png)
 - 🚀 **⏮** ir al inicio · **▶/⏸** reproducir (`Espacio`) · el tiempo actual se muestra en verde.
 - 📄 **Dur.** — duración del documento en segundos (si hay escenas, se calcula sola).
 - 🔄 **🔁** — repetir en bucle.
@@ -212,16 +209,17 @@ Para leer la curva con estudiantes: pendiente = velocidad. Plana al inicio = arr
 ---
 
 ## 10. Rutas de animación (motion paths)
-
+![](assets/09ruta-de-animacion.png)
 Una **ruta de animación** es un trazado invisible que un objeto recorre, como la "Trayectoria personalizada" de PowerPoint.
 
 ### 📄➕ Crear rutas
 
-- 🔑 **A mano alzada (➰ / `M`)**: selecciona primero el objeto (o grupo), elige la herramienta y dibuja arrastrando. El trazo se simplifica y suaviza automáticamente y **se asigna al objeto seleccionado**, con claves de Trayecto % de 0→100 a lo largo de toda la duración. `Esc` cancela.
+- **A mano alzada (➰ / `M`)**: selecciona primero el objeto (o grupo), elige la herramienta y dibuja arrastrando. El trazo se simplifica y suaviza automáticamente y **se asigna al objeto seleccionado**, con claves de Trayecto % de 0→100 a lo largo de toda la duración. `Esc` cancela.
 - 🌐 **Predefinidas (＋ del panel Rutas)**: líneas (→ ← ↑ ↓), diagonal, círculo, cuadrado, ocho, onda, zigzag, rebote y espiral. Se generan ancladas al centro del objeto seleccionado (el movimiento empieza donde está) o al centro del lienzo si no hay selección.
 - 🔘 **Desde el trazado seleccionado**: convierte cualquier capa de trazado (pluma, forma convertida) en ruta de la biblioteca.
 
 ### 📊 El panel "Rutas de animación"
+![](assets/09ruta-de-animacion-panel.png)
 
 Cada ruta muestra: nombre (doble clic renombra), cuántos objetos la usan (×N) y tres acciones — **➤ asignar** a la selección (admite multiselección), **✒ editar nodos** (misma edición Bézier; los objetos suscritos se actualizan en vivo) y **🗑 eliminar** (avisa si está en uso). Al pasar el ratón por un elemento, su ruta se ilumina en el lienzo; **👁** las muestra todas.
 
@@ -240,7 +238,7 @@ El movimiento de ruta se **suma** a las demás transformaciones (rotación, esca
 ---
 
 ## 11. Morphing de geometría
-
+![](assets/10morphing.png)
 La propiedad **Geometría** anima la *forma misma* del objeto, como los shape layers de After Effects.
 
 ### 💼 Flujo de trabajo
@@ -270,12 +268,35 @@ La propiedad **Geometría** anima la *forma misma* del objeto, como los shape la
 ---
 
 ## ✨ 12. Trazo autodibujable
+![](assets/11autodraw.gif)
 
 El clásico efecto "el dibujo se dibuja solo" (técnicamente `stroke-dasharray`/`stroke-dashoffset`).
 
-1. La forma necesita **color de trazo** (Apariencia → Trazo). Para un dibujo lineal puro, pon Relleno ∅.
-2. En Apariencia, la propiedad **Dibujo %** indica qué porción del contorno está dibujada (100 = todo).
-3. Clava ◆ en Dibujo % con valor **0** al inicio y **100** al final del tramo deseado.
+Aquí tienes la explicación paso a paso de cómo crear el efecto de Trazo autodibujable (el efecto de que una línea o forma se va dibujando sola en pantalla):
+
+Paso 1: Crear o seleccionar la forma 
+
+Dibuja cualquier forma en el lienzo (puede ser un rectángulo, una elipse, una línea, o incluso un trazado libre hecho con la pluma ✎). Luego, asegúrate de tenerla seleccionada.
+
+Paso 2: Configurar la apariencia (colores) 
+
+Ve al panel flotante de Propiedades y busca la sección Apariencia.
+
+Dale un color de Trazo (el contorno). Si quieres que sea puramente una línea dibujándose, asegúrate de quitarle el relleno (haz clic en el botón ∅ junto a "Relleno").
+Paso 3: Preparar la animación (Fotograma inicial)
+
+Mueve el cursor en tu línea de tiempo (abajo) al instante donde quieres que empiece a dibujarse la forma (por ejemplo, en el segundo 0).
+En el panel de Propiedades, dentro de Apariencia, busca la propiedad Dibujo %.
+Cambia el valor de Dibujo % a 0. Esto hará que la línea desaparezca (porque el 0% de la línea está dibujada).
+Haz clic en el rombo (◆) que está junto a "Dibujo %" para crear un keyframe (fotograma clave) en ese instante.
+
+Paso 4: Terminar la animación (Fotograma final)
+
+Mueve el cursor en la línea de tiempo hacia adelante, al instante donde quieres que el dibujo termine de trazarse (por ejemplo, en el segundo 2).
+Vuelve al panel de Propiedades y cambia el valor de Dibujo % a 100. Esto hará que la línea se vea completa nuevamente y automáticamente se creará otro keyframe.
+¡Listo! Si le das al botón de reproducir (o presionas la barra espaciadora), verás cómo la forma pasa del 0% al 100% dibujándose poco a poco a lo largo de ese tiempo.
+
+💡 Tip Pro: Si haces clic en el primer fotograma clave (el rombo en la línea de tiempo) y le cambias el "Easing" a Ease In-Out, el movimiento empezará suave, acelerará un poco en medio y terminará suave, haciendo que el efecto de que alguien lo está dibujando se vea mucho más orgánico y natural.
 
 Funciona con rectángulos, elipses, líneas, polígonos y trazados (también con subtrazados múltiples). Con easing Ease In-Out el efecto queda muy natural. Combínalo con la pluma: escribe una palabra a mano alzada, suavízala y hazla autodibujarse.
 
