@@ -17,8 +17,8 @@ body{
   background:var(--bg); color:var(--txt);
   display:grid;
   grid-template-rows:44px 1fr 240px;
-  grid-template-columns:230px 1fr 250px;
-  grid-template-areas:"top top top" "layers canvas props" "timeline timeline timeline";
+  grid-template-columns:230px 1fr;
+  grid-template-areas:"top top" "layers canvas" "timeline timeline";
 }
 button{
   background:var(--panel2); color:var(--txt); border:1px solid var(--border);
@@ -142,20 +142,79 @@ label{color:var(--txt2); font-size:12px;}
 }
 #hint.show{opacity:1;}
 
-/* ---- Panel de propiedades ---- */
+/* ---- Panel de propiedades (flotante arrastrable) ---- */
 #propsPanel{
-  grid-area:props; background:var(--panel); border-left:1px solid var(--border);
-  overflow-y:auto; display:flex; flex-direction:column;
+  position:fixed;
+  top:54px; right:10px;
+  width:268px;
+  max-height:calc(100vh - 64px);
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:8px;
+  box-shadow:0 8px 32px rgba(0,0,0,.55);
+  display:flex; flex-direction:column;
+  z-index:200;
+  min-height:40px;
+  resize:horizontal;
+  overflow:hidden;
+  transition:box-shadow .15s;
 }
-#propsBody{padding:10px;}
+#propsPanel:focus-within{box-shadow:0 10px 40px rgba(124,92,255,.25), 0 8px 32px rgba(0,0,0,.55);}
+#propsDragBar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 8px 0 10px; height:32px; flex-shrink:0;
+  cursor:grab; user-select:none;
+  background:var(--panel2);
+  border-bottom:1px solid var(--border);
+  border-radius:8px 8px 0 0;
+  gap:6px;
+}
+#propsDragBar:active{cursor:grabbing;}
+#propsDragBar .drag-title{
+  font-size:11px; font-weight:600; letter-spacing:.8px; text-transform:uppercase;
+  color:var(--txt2); flex:1;
+  display:flex; align-items:center; gap:5px;
+}
+#propsDragBar .drag-dots{
+  display:flex; flex-direction:column; gap:2.5px; opacity:.4; pointer-events:none;
+}
+#propsDragBar .drag-dots span{
+  display:block; width:18px; height:2px;
+  background:var(--txt2); border-radius:2px;
+}
+#propsBtnCollapse{
+  width:22px; height:22px; padding:0; border:none; background:none;
+  color:var(--txt2); font-size:13px; cursor:pointer; display:flex;
+  align-items:center; justify-content:center; border-radius:4px; flex-shrink:0;
+}
+#propsBtnCollapse:hover{background:var(--border); color:var(--txt);}
+#propsScrollArea{
+  overflow-y:auto; flex:1; min-height:0;
+}
+#propsBody{padding:8px 10px 10px;}
 .prow{display:flex; align-items:center; gap:6px; margin-bottom:7px; flex-wrap:wrap;}
 .prow label{width:72px; flex-shrink:0;}
 .prow input[type=text]{flex:1; min-width:60px;}
+/* Sección colapsable del panel de propiedades */
 .pgroup{
-  border-top:1px solid var(--border); margin-top:10px; padding-top:8px;
+  border-top:1px solid var(--border); margin-top:8px; padding-top:0;
   font-size:11px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; color:var(--txt2);
-  margin-bottom:8px;
+  margin-bottom:0;
+  display:flex; align-items:center; justify-content:space-between;
+  cursor:pointer; user-select:none;
+  padding:7px 0 5px;
+  gap:4px;
+  transition:color .12s;
 }
+.pgroup:hover{color:var(--txt);}
+.pgroup .pgroup-title{flex:1; display:flex; align-items:center; gap:5px;}
+.pgroup .pgroup-chev{font-size:10px; color:var(--txt2); transition:transform .15s; display:inline-block; margin-right:2px;}
+.pgroup-body{
+  overflow:hidden;
+  transition:max-height .2s ease, opacity .15s ease;
+  max-height:1000px; opacity:1;
+}
+.pgroup-body.pg-collapsed{max-height:0 !important; opacity:0; pointer-events:none;}
 .kbtn{
   width:20px; height:20px; padding:0; border-radius:3px; font-size:11px; line-height:1;
   display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
@@ -165,6 +224,9 @@ label{color:var(--txt2); font-size:12px;}
 .kbtn.animated{color:var(--kf);}
 .kbtn.onkey{background:var(--kf); color:#111; border-color:var(--kf);}
 .empty-note{color:var(--txt2); padding:16px 12px; line-height:1.5;}
+/* Panel colapsado: solo barra de título visible */
+#propsPanel.pp-collapsed #propsScrollArea{display:none;}
+#propsPanel.pp-collapsed{min-height:0; max-height:none; resize:none; border-radius:8px;}
 
 /* ---- Línea de tiempo ---- */
 #timeline{
@@ -222,7 +284,7 @@ label{color:var(--txt2); font-size:12px;}
 #layersList{flex:1;}
 #scenesList,#routesList{flex:0 1 auto; max-height:32%;}
 .sec-collapsed{display:none !important;}
-body.lcol-collapsed{grid-template-columns:26px 1fr 250px;}
+body.lcol-collapsed{grid-template-columns:26px 1fr;}
 body.lcol-collapsed #layersPanel>*:not(#colStrip){display:none !important;}
 #colStrip{display:none; padding:5px 2px; text-align:center;}
 body.lcol-collapsed #colStrip{display:block;}
@@ -396,10 +458,18 @@ body.lcol-collapsed #colStrip{display:block;}
   <div id="hint"></div>
 </div>
 
-<!-- ============ PANEL DE PROPIEDADES ============ -->
+<!-- ============ PANEL DE PROPIEDADES (flotante) ============ -->
 <div id="propsPanel">
-  <div class="panel-title">Propiedades</div>
-  <div id="propsBody"><div class="empty-note">Selecciona un elemento para editar sus propiedades.<br><br>Atajos: V selección · R rectángulo · E elipse · L línea · P pluma · T texto · Espacio reproducir · Supr eliminar · Ctrl+Z deshacer.</div></div>
+  <div id="propsDragBar">
+    <div class="drag-title">
+      <div class="drag-dots"><span></span><span></span><span></span></div>
+      Propiedades
+    </div>
+    <button id="propsBtnCollapse" title="Colapsar/expandir panel">⌃</button>
+  </div>
+  <div id="propsScrollArea">
+    <div id="propsBody"><div class="empty-note">Selecciona un elemento para editar sus propiedades.<br><br>Atajos: V selección · R rectángulo · E elipse · L línea · P pluma · T texto · Espacio reproducir · Supr eliminar · Ctrl+Z deshacer.</div></div>
+  </div>
 </div>
 
 <!-- ============ LÍNEA DE TIEMPO ============ -->
@@ -1689,9 +1759,17 @@ function loadUI(){
   if(u.tlh){ document.body.style.gridTemplateRows=`44px 1fr ${clamp(u.tlh,140,600)}px`; }
   if(u.lpw){
     const w=clamp(u.lpw,140,500);
-    document.body.style.gridTemplateColumns=`${w}px 1fr 250px`;
+    document.body.style.gridTemplateColumns=`${w}px 1fr`;
     $('#timeline').style.gridTemplateColumns=`${w}px 1fr`;
   }
+  if(u.pp_x!=null && u.pp_y!=null){
+    const pp=$('#propsPanel');
+    pp.style.right='auto';
+    pp.style.left=clamp(u.pp_x,0,window.innerWidth-80)+'px';
+    pp.style.top=clamp(u.pp_y,44,window.innerHeight-50)+'px';
+  }
+  if(u.pp_w){ $('#propsPanel').style.width=clamp(u.pp_w,180,600)+'px'; }
+  if(u.pp_collapsed){ $('#propsPanel').classList.add('pp-collapsed'); $('#propsBtnCollapse').textContent='\u2304'; }
   const a=localStorage.getItem('vm_auto');
   if(a&&+a>0){ $('#autoSel').value=a; $('#autoSel').onchange({target:{value:a}}); }
 }
@@ -1702,11 +1780,8 @@ function loadUI(){
   let startX, startW;
   handle.addEventListener('pointerdown', e=>{
     e.preventDefault();
-    startX=e.clientX;
-    startW=document.body.getBoundingClientRect().left + // 0
-           parseInt(getComputedStyle(document.body).gridTemplateColumns.split(' ')[0]) || 230;
-    // Obtener ancho actual del panel
     startW = $('#layersPanel').getBoundingClientRect().width;
+    startX=e.clientX;
     handle.classList.add('dragging');
     handle.setPointerCapture(e.pointerId);
     document.body.style.userSelect='none';
@@ -1714,7 +1789,7 @@ function loadUI(){
   handle.addEventListener('pointermove', e=>{
     if(!handle.classList.contains('dragging')) return;
     const w=clamp(startW+(e.clientX-startX), 140, 500);
-    document.body.style.gridTemplateColumns=`${w}px 1fr 250px`;
+    document.body.style.gridTemplateColumns=`${w}px 1fr`;
     $('#timeline').style.gridTemplateColumns=`${w}px 1fr`;
     updateView();
   });
@@ -1726,6 +1801,81 @@ function loadUI(){
     saveUI({lpw: w});
   });
 })();
+
+/* ---- Drag del panel flotante de propiedades ---- */
+(()=>{
+  const pp=$('#propsPanel');
+  const bar=$('#propsDragBar');
+  let ox=0,oy=0,sx=0,sy=0,dragging=false;
+  bar.addEventListener('pointerdown',e=>{
+    if(e.target.closest('button')) return;
+    dragging=true;
+    bar.setPointerCapture(e.pointerId);
+    const r=pp.getBoundingClientRect();
+    // Normalizar: siempre usar left/top (quitar right)
+    pp.style.right='auto';
+    pp.style.left=r.left+'px';
+    pp.style.top=r.top+'px';
+    ox=r.left; oy=r.top;
+    sx=e.clientX; sy=e.clientY;
+    document.body.style.userSelect='none';
+  });
+  bar.addEventListener('pointermove',e=>{
+    if(!dragging) return;
+    const nx=clamp(ox+(e.clientX-sx),0,window.innerWidth-60);
+    const ny=clamp(oy+(e.clientY-sy),44,window.innerHeight-50);
+    pp.style.left=nx+'px';
+    pp.style.top=ny+'px';
+  });
+  bar.addEventListener('pointerup',e=>{
+    if(!dragging) return;
+    dragging=false;
+    document.body.style.userSelect='';
+    saveUI({pp_x:parseFloat(pp.style.left),pp_y:parseFloat(pp.style.top)});
+  });
+  // Observar resize manual del panel (handle nativo del navegador)
+  if(typeof ResizeObserver!=='undefined'){
+    new ResizeObserver(()=>{
+      saveUI({pp_w:pp.getBoundingClientRect().width});
+    }).observe(pp);
+  }
+})();
+
+/* ---- Boton colapsar panel de propiedades ---- */
+$('#propsBtnCollapse').onclick=()=>{
+  const pp=$('#propsPanel');
+  const col=pp.classList.toggle('pp-collapsed');
+  $('#propsBtnCollapse').textContent=col?'\u2304':'\u2303';
+  saveUI({pp_collapsed:col});
+};
+
+/* ---- Secciones colapsables dentro del panel de propiedades ---- */
+function bindPgroupToggles(){
+  $('#propsBody').querySelectorAll('.pgroup').forEach(pg=>{
+    pg.addEventListener('click',e=>{
+      if(e.target.closest('.kbtn')) return;
+      const id=pg.dataset.pgid;
+      const body=document.getElementById('pg_'+id);
+      if(!body) return;
+      const col=body.classList.toggle('pg-collapsed');
+      const chev=pg.querySelector('.pgroup-chev');
+      if(chev){ chev.style.transform=col?'rotate(-90deg)':''; chev.textContent=col?'\u25b8':'\u25be'; }
+      saveUI({['pg_'+id]:col});
+    });
+  });
+  // Restaurar estado guardado
+  const u=uiState();
+  $('#propsBody').querySelectorAll('.pgroup').forEach(pg=>{
+    const id=pg.dataset.pgid;
+    if(!id) return;
+    const body=document.getElementById('pg_'+id);
+    if(u['pg_'+id] && body){
+      body.classList.add('pg-collapsed');
+      const chev=pg.querySelector('.pgroup-chev');
+      if(chev){ chev.style.transform='rotate(-90deg)'; chev.textContent='\u25b8'; }
+    }
+  });
+}
 
 /* ---- Menú de rutas con posición fija (evita clipping) ---- */
 $('#btnRouteAdd').onclick=e=>{
@@ -2067,11 +2217,14 @@ function attrRow(label,attr,val,step){
 }
 function renderProps(){
   const body=$('#propsBody'); const l=selLayer();
-  if(!l){ body.innerHTML='<div class="empty-note">Selecciona un elemento para editar sus propiedades.<br><br>Atajos: V selección · A nodos · R rectángulo · E elipse · L línea · G polígono · P pluma · T texto · H mano · Espacio reproducir · Supr eliminar · Shift+clic selección múltiple.</div>'; return; }
+  if(!l){ body.innerHTML='<div class="empty-note">Selecciona un elemento para editar sus propiedades.<br><br>Atajos: V selección · A nodos · R rectángulo · E elipse · L línea · G polígono · P pluma · T texto · H mano · Espacio reproducir · Supr eliminar · Shift+clic selección múltiple.</div>'; bindPgroupToggles(); return; }
   const p=effProps(l,S.T), a=l.attrs;
   const multi=S.selSet.size>1?` <span style="color:var(--accent2)">(+${S.selSet.size-1} más)</span>`:'';
+  const pg=(id,label,extra='')=>`<div class="pgroup" data-pgid="${id}"><span class="pgroup-chev">&#x25be;</span><span class="pgroup-title">${label}${extra?'&nbsp;'+extra:''}</span></div><div class="pgroup-body" id="pg_${id}">`;
+  const pgEnd=`</div>`;
+
   let h=`<div class="prow"><label>Nombre</label><input type="text" id="propName" value="${esc(l.name)}">${multi}</div>`;
-  h+=`<div class="pgroup">Transformación</div>`;
+  h+=pg('xform','Transformación');
   h+=numRow('Pos. X','tx',p.tx)+numRow('Pos. Y','ty',p.ty)+numRow('Rotación','rot',p.rot)
     +numRow('Escala X','sx',p.sx,0.05)+numRow('Escala Y','sy',p.sy,0.05)
     +numRow('Sesgo X','skx',p.skx)+numRow('Sesgo Y','sky',p.sky)
@@ -2086,7 +2239,9 @@ function renderProps(){
     <input type="number" data-org="x" value="${+ocx.toFixed(1)}" title="Origen X (rotación/escala)">
     <input type="number" data-org="y" value="${+ocy.toFixed(1)}" title="Origen Y">
     <button class="mini" data-a="centerorg" title="Centrar origen">⌖</button></div>`;
-  h+=`<div class="pgroup">Apariencia</div>`;
+  h+=pgEnd;
+
+  h+=pg('appear','Apariencia');
   if(l.type!=='line'&&l.type!=='raw')
     h+=`<div class="prow"><label>Relleno</label><input type="color" data-cprop="fill" value="${hexRgb(p.fill)?rgbHex(hexRgb(p.fill)):'#7c5cff'}">
         <button class="mini" data-a="nofill" title="Sin relleno">∅</button>${kBtn('fill')}</div>`;
@@ -2096,7 +2251,9 @@ function renderProps(){
     h+=attrRow('Grosor','sw',a.sw||1,0.5);
     if(l.type!=='text') h+=numRow('Dibujo %','draw',p.draw,1);
   }
-  h+=`<div class="pgroup">Geometría ${l.type!=='raw'?kBtn('geom'):''}</div>`;
+  h+=pgEnd;
+
+  h+=pg('geom','Geometría',l.type!=='raw'?kBtn('geom'):'');
   if(keysOf(l.id,'geom')) h+=`<div class="empty-note" style="padding:2px 0 6px">Geometría animada (morphing): cada edición de forma clava keyframe en t=${S.T.toFixed(2)}s.</div>`;
   switch(l.type){
     case 'rect': h+=attrRow('X','x',a.x)+attrRow('Y','y',a.y)+attrRow('Ancho','w',a.w)+attrRow('Alto','h',a.h)+attrRow('Radio','rx',a.rx||0); break;
@@ -2126,9 +2283,11 @@ function renderProps(){
         <button class="mini" data-a="smooth">〰 Suavizar</button></div>`; break;
     case 'raw': h+=`<div class="empty-note" style="padding:4px 0">Grupo: se transforma y anima como conjunto. Usa Objeto → Desagrupar para separarlo.</div>`; break;
   }
+  h+=pgEnd;
+
   const paths=doc.layers.filter(x=>x.type==='path'&&x.id!==l.id);
-  h+=`<div class="pgroup">Trayectoria de movimiento</div>
-    <div class="prow"><label>Trazado</label><select id="motionSel">
+  h+=pg('motion','Trayectoria de movimiento');
+  h+=`<div class="prow"><label>Trazado</label><select id="motionSel">
       <option value="">— ninguna —</option>
       ${doc.routes.map(x=>`<option value="${x.id}"${l.motion&&l.motion.srcId===x.id?' selected':''}>➰ ${esc(x.name)}</option>`).join('')}
       ${paths.map(x=>`<option value="${x.id}"${l.motion&&l.motion.srcId===x.id?' selected':''}>✎ ${esc(x.name)}</option>`).join('')}
@@ -2138,17 +2297,23 @@ function renderProps(){
       +numRow('Progreso %','mp',p.mp,1)
       +`<div class="empty-note" style="padding:2px 0">Anima "Trayecto %" con keyframes (0 → 100) para recorrer el trazado.</div>`;
   }
+  h+=pgEnd;
+
   if(doc.scenes.length){
-    h+=`<div class="pgroup">Escena</div>
-      <div class="prow"><label>Escena</label><select id="sceneSel">
+    h+=pg('scene','Escena');
+    h+=`<div class="prow"><label>Escena</label><select id="sceneSel">
         <option value="">🌐 global</option>
         ${doc.scenes.map(s=>`<option value="${s.id}"${l.scene===s.id?' selected':''}>${esc(s.name)}</option>`).join('')}
       </select></div>`;
+    h+=pgEnd;
   }
-  h+=`<div class="pgroup">Efectos de vídeo</div>
-    <div class="prow"><label>Efecto</label><select id="fxSel" style="max-width:150px">${Object.entries(FX).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div>
+
+  h+=pg('fx','Efectos de vídeo');
+  h+=`<div class="prow"><label>Efecto</label><select id="fxSel" style="max-width:150px">${Object.entries(FX).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></div>
     <div class="prow"><label>Duración</label><input type="number" id="fxDur" value="1" min="0.1" step="0.1" style="width:52px">
     <button class="mini" id="fxApply" title="Genera keyframes editables desde el tiempo actual">Aplicar en t=${S.T.toFixed(2)}s</button></div>`;
+  h+=pgEnd;
+
   body.innerHTML=h;
 
   const scs=$('#sceneSel');
@@ -2208,7 +2373,9 @@ function renderProps(){
   const mo=$('#motionOrient');
   if(mo) mo.onchange=()=>{ snapshot(); l.motion.orient=mo.checked; applyFrame(S.T); };
   $('#propName').onchange=e=>{ l.name=e.target.value; renderLayersPanel(); renderTimeline(); };
+  bindPgroupToggles();
 }
+
 function toggleKey(l,prop){
   snapshot();
   const ks=keysOf(l.id,prop);
