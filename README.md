@@ -86,7 +86,7 @@ Con la herramienta **Selección (V)**:
 - 👣 **Círculo superior**: rotación. `Shift` ajusta a pasos de 15°.
 - 🌐 **Cruz roja ⌖**: es el **origen de transformación** (el punto alrededor del cual rotan y escalan las cosas). Arrástralo donde quieras — por ejemplo, al hombro de un brazo para articularlo. "Centrar origen" en Propiedades o en el menú Objeto lo devuelve al centro geométrico.
 
-**Menú Objeto**: agrupar (`Ctrl+G`) / desagrupar (`Ctrl+Shift+G`), unión de formas (combina 2+ formas en un solo trazado), voltear horizontal/vertical, girar ±90°, centrar origen, convertir a trazado y suavizar trazado (convierte una polilínea de la pluma en curvas suaves Catmull-Rom).
+**Menú Objeto**: agrupar (`Ctrl+G`) / desagrupar (`Ctrl+Shift+G`), operaciones booleanas (Unir, Combinar, Fragmentar, Intersecar, Restar - combinan 2+ formas en un nuevo trazado), voltear horizontal/vertical, girar ±90°, centrar origen, convertir a trazado y suavizar trazado (convierte una polilínea de la pluma en curvas suaves Catmull-Rom).
 
 **Menú Alinear**: con un solo objeto alinea respecto al lienzo; con varios, respecto al conjunto (izquierda, centro, derecha, arriba, medio, abajo).
 
@@ -98,14 +98,21 @@ Con la herramienta **Selección (V)**:
 ![](assets/04nodos-bezier.png)
 Activa la herramienta **Nodos (A)** con un trazado seleccionado (las formas primitivas se convierten a trazado automáticamente, con confirmación si tienen animación de geometría).
 
-- ⚓ **Arrastra un ancla** (cuadrado) para moverla; sus manejadores la acompañan.
-- 🕸️ **Arrastra un manejador** (círculo) para curvar el segmento. En nodos suaves, el manejador opuesto se mantiene simétrico; **Alt** rompe la simetría (esquina).
+- ⚓ **Arrastra un ancla** (cuadrado o círculo) para moverla; sus manejadores la acompañan.
+- 🕸️ **Arrastra un manejador** (círculo) para curvar el segmento. En nodos suaves, el manejador opuesto se mantiene alineado; **Alt** rompe la simetría convirtiéndolo en independiente.
 - 💻 **Doble clic en un ancla**: alterna esquina ⇄ curva suave.
+- 🎛️ **Panel de Propiedades (Nodo seleccionado)**: Al seleccionar un punto con la herramienta `A`, se habilita una sección dedicada en el panel derecho:
+  - **Tipo de nodo**:
+    - `∡ Recto`: Vértice recto sin handles.
+    - `⌒ Suave`: Handles acoplados y alineados a 180° (curva continua).
+    - `⎇ Independiente`: Handles desacoplados; mover uno no altera el opuesto ni el segmento adyacente.
+  - **Posición X / Y**: Edición numérica precisa de las coordenadas del ancla.
+  - **Entrada / Salida**: Botones `[＋ Curvar]` / `[✕ Quitar]` para activar o desactivar handles de forma asimétrica (hacer recto el segmento previo o el siguiente).
 - 🗄️ **Doble clic sobre el trazado**: inserta un nodo en ese punto (subdivisión exacta de la curva).
-- 🔘 **Supr**: elimina el nodo seleccionado (mínimo 2 por trazado).
+- 🔘 **Supr / Botón Eliminar**: elimina el nodo seleccionado (mínimo 2 por trazado).
 - `Esc` sale de la edición.
 
-Los nodos redondeados indican curva suave; los cuadrados, esquina. Si el trazado es la fuente de una ruta de animación, los objetos que la siguen se actualizan en vivo mientras editas.
+Los nodos redondeados indican curva suave; los cuadrados, esquina o handles independientes. Si el trazado es la fuente de una ruta de animación, los objetos que la siguen se actualizan en vivo mientras editas.
 
 **Limitación**: los trazados con comandos de arco (`A`) o coordenadas relativas no son editables por nodos ni compatibles con la unión (la app avisa). Los SVG importados como capa `raw` tampoco, hasta desagruparlos.
 
@@ -305,7 +312,7 @@ Se exporta en CSS, SMIL, JS y en el fotograma estático (SVG/PNG).
 ---
 
 ## 13. Efectos de vídeo
-
+![](assets/11video.png)
 La sección **Efectos de vídeo** de Propiedades aplica presets de entrada/salida generando keyframes normales (visibles y editables en el timeline) **a partir del tiempo actual** sobre todos los objetos seleccionados.
 
 | Efecto                                      | Propiedades que anima                       |
@@ -324,7 +331,7 @@ Elige efecto y duración, colócate en el instante donde debe **empezar**, y pul
 ---
 
 ## ✨ 14. Escenas y transiciones
-
+![](assets/12escenas.png)
 Las **escenas** organizan la película en segmentos consecutivos, como diapositivas o clips de un editor de vídeo, con transiciones automáticas entre ellas.
 
 ### Modelo
@@ -346,7 +353,7 @@ Las animaciones de las capas siguen siendo globales en el tiempo — coloca sus 
 ---
 
 ## 15. Papel cebolla
-
+![](assets/13onion.png)
 El botón **🧅** superpone fantasmas de fotogramas vecinos mientras editas con el cabezal parado: **rojizos** los anteriores, **verdosos** los siguientes (dos por lado, ±0.12 s cada uno, más tenue cuanto más lejano).
 
 Sirve para enseñar **spacing**: al posar con auto-clave, los fantasmas muestran cuánto "viaja" el objeto entre instantes — separaciones grandes = rápido, pequeñas = lento. Se ocultan durante la reproducción y nunca se exportan.
@@ -354,7 +361,7 @@ Sirve para enseñar **spacing**: al posar con auto-clave, los fantasmas muestran
 ---
 
 ## 🖥️ 16. Lienzo desacoplable (segunda pantalla)
-
+![](assets/14pantalla2.png)
 El botón **🗗** abre el lienzo en una **ventana independiente**: un espejo en vivo, limpio (sin reglas, cuadrícula ni marcas de selección), sincronizado fotograma a fotograma con todo — transformaciones, colores, morphing, escenas.
 
 Arrástrala a un proyector o segunda pantalla para que la clase vea la animación mientras tú trabajas en la principal con todos los paneles. El mismo botón (o cerrar la ventana) la acopla de nuevo. Si el navegador bloquea la ventana emergente, permite pop-ups para el archivo.
@@ -362,26 +369,30 @@ Arrástrala a un proyector o segunda pantalla para que la clase vea la animació
 ---
 
 ## 17. Navegación del lienzo, cuadrícula y reglas
-
-- ⭐ **Zoom**: `Ctrl+rueda` (centrado en el cursor), o los botones −/+ y ⛶ (ajustar a ventana) del indicador inferior. Rango 5%–3200%.
-- ⋯ **Paneo**: rueda = vertical; `Shift+rueda` = horizontal; **botón central**, **Espacio+arrastrar** o herramienta **Mano (H)**.
-- 📄 **Reglas** en px del documento, sincronizadas con zoom y paneo.
-- 🕸️ **▦ Cuadrícula** con tamaño configurable y **🧲 imán** que ajusta dibujo, movimiento, nodos y origen a la rejilla.
+![](assets/15lienzo-regla-grid-nav.png)
+- 🔍 **Zoom**: `Ctrl+rueda` (centrado en el cursor), o los botones −/+ y ⛶ (ajustar a ventana) del indicador inferior. Rango 5%–3200%.
+- 👋 **Paneo**: rueda = vertical; `Shift+rueda` = horizontal; **botón central**, **Espacio+arrastrar** o herramienta **Mano (H)**.
+- 📏**Reglas** en px del documento, sincronizadas con zoom y paneo.
+- **▦ Cuadrícula** con tamaño configurable y **🧲 imán** que ajusta dibujo, movimiento, nodos y origen a la rejilla.
 - 📋 **Lienzo**: ancho × alto y color de fondo en la barra superior. El fondo es *solo de vista*: no se exporta (ver [§18](#-18-importar-y-exportar)).
 
 ---
 
 ## 📥 18. Importar y exportar
 
-### 📤 Importar
+### 📤 Importar (menú 📂 Importar ▾)
+![](assets/16import.png)
 
-- ℹ️ **📂 Importar SVG/Lottie** admite **selección múltiple**, y también puedes **arrastrar y soltar** archivos .svg directamente sobre el lienzo. Cada archivo entra como capa(s) sin borrar lo existente; si el lienzo estaba vacío, adopta el tamaño del primer SVG.
-- ✏️ Los `<defs>` y `<style>` del SVG se conservan. Cada elemento raíz llega como capa 🧩 (raw); desagrupa para editar sus partes.
-- 🔑 **Lottie (.json)**: el mismo botón (que ahora acepta `.json`) importa animaciones **Lottie/Bodymovin** — las de LottieFiles o exportadas de After Effects. Se convierten a capas y keyframes nativos, totalmente editables: capas de formas con trazados Bézier (`sh`, con sus tangentes → curvas editables por nodos), rectángulos, elipses y estrellas/polígonos (→ tu herramienta de polígono), rellenos y trazos con sus colores, y la animación de transformación completa (posición, rotación, escala, opacidad, sesgo). El punto de ancla de After Effects se mapea al origen ⌖ (las rotaciones giran donde deben), los fotogramas se convierten a segundos según `fr`, la duración del documento se ajusta a `(op−ip)/fr`, y los easings Bézier de cada keyframe se aproximan a la curva con nombre más parecida (los keyframes "hold" se vuelven Escalón). Se omiten con aviso: precomposiciones, texto, imágenes, emparentado entre capas, degradados, trim paths, repetidores y transformaciones de grupo animadas (las estáticas se hornean en la geometría). Un archivo `.lottie` (dotLottie) es un ZIP: descomprímelo y usa el `.json` interior.
-- 💻 **Abrir proyecto (.json)** restaura un proyecto completo con animaciones, rutas y escenas.
+El botón **📂 Importar ▾** cuenta con un menú emergente que adapta la ventana de diálogo al tipo de archivo:
+- 💻 **Abrir proyecto (.json)**: restaura un proyecto completo con capas, animaciones, rutas y escenas.
+- 📐 **Archivo vectorial (SVG, Lottie JSON)**: importa elementos vectoriales o animaciones Bodymovin/LottieFiles (.json / .svg) convirtiéndolos a capas nativas.
+- 🖼️ **Imagen de referencia / Calco (PNG, JPG, WebP...)**: importa mapas de bits colocándolos automáticamente al **fondo de la lista de capas**, con opacidad al 50% y **bloqueados 🔒** con el distintivo `[CALCO]` para calcar encima cómodamente sin moverlos por accidente.
+- 🌐 **Todos los formatos compatibles**: admite selección múltiple de cualquier formato válido.
+
+También puedes **arrastrar y soltar** o pegar con `Ctrl+V` directamente sobre el lienzo. Cada archivo entra como capa(s) sin borrar lo existente; si el lienzo estaba vacío, adopta el tamaño del primer archivo importado.
 
 ### 📥 Exportar (menú ⬇ Exportar)
-
+![](assets/17export.png)
 | Formato                 | Qué contiene                                     | Ideal para                                                           |
 | ----------------------- | ------------------------------------------------- | -------------------------------------------------------------------- |
 | **SVG estático**       | El fotograma actual congelado                     | Ilustraciones, apuntes                                               |
@@ -401,11 +412,11 @@ Notas:
 ---
 
 ## ✨ 19. Guardar, autoguardado y proyectos
-
+![](assets/18guardar-auto.png)
 - 💻 **💾 Guardar** (`Ctrl+S`): la primera vez eliges dónde guardar el `.json`; las siguientes escribe **en el mismo archivo** sin diálogos (Chrome/Edge; en otros navegadores descarga el archivo).
 - 🛡️ **Auto:** junto al botón — autoguardado cada 30 s / 1 / 2 / 5 min, al archivo elegido y siempre con **copia de seguridad en el navegador**. El intervalo se recuerda.
 - 🛡️ Al abrir la app con lienzo vacío, si hay copia de seguridad se ofrece **restaurarla** (con fecha y hora).
-- 💻 El menú Exportar conserva **Guardar proyecto (.json)** (descarga clásica) y **Abrir proyecto**.
+- 💻 El menú Exportar conserva **Guardar proyecto (.json)** (descarga clásica), y el menú Importar incluye **Abrir proyecto (.json)**.
 - 💻 El proyecto guarda todo: documento, capas, animaciones, rutas, escenas y defs importados. Es JSON legible — otra oportunidad didáctica.
 
 ---
@@ -468,4 +479,4 @@ Notas:
 
 ---
 
-*VectorMotion es un proyecto educativo de código abierto en un solo archivo. Ábrelo, mira dentro — el propio editor es la última lección del curso.*
+*VectorMotion es un proyecto educativo de código abierto en un solo archivo. 
