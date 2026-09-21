@@ -509,6 +509,22 @@
       opacity: 0.9;
     }
 
+    .canvas-guide.locked {
+      pointer-events: none !important;
+      cursor: default !important;
+    }
+
+    .canvas-guide.locked .guide-line {
+      border-style: dotted !important;
+      opacity: 0.75;
+    }
+
+    .canvas-guide.hover-highlight .guide-line {
+      border-color: #ffb454 !important;
+      border-width: 1.5px !important;
+      filter: drop-shadow(0 0 5px rgba(255, 180, 84, 0.95)) !important;
+    }
+
     #guideTooltip {
       position: absolute;
       pointer-events: none;
@@ -1091,6 +1107,66 @@
       white-space: nowrap;
     }
 
+    .guide-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 8px;
+      border-bottom: 1px solid #24262d;
+      font-size: 12px;
+      user-select: none;
+      transition: background 0.15s;
+    }
+
+    .guide-item:hover {
+      background: #24262e;
+    }
+
+    .guide-item.is-locked {
+      opacity: 0.85;
+    }
+
+    .guide-item.is-hidden {
+      opacity: 0.55;
+    }
+
+    .guide-item .guide-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 18px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    .guide-item .guide-badge.badge-h {
+      background: rgba(0, 194, 168, 0.18);
+      color: #00c2a8;
+      border: 1px solid rgba(0, 194, 168, 0.4);
+    }
+
+    .guide-item .guide-badge.badge-v {
+      background: rgba(124, 92, 255, 0.18);
+      color: #9d80ff;
+      border: 1px solid rgba(124, 92, 255, 0.4);
+    }
+
+    .guide-item .gpos-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .guide-item input[type=number] {
+      width: 58px;
+      padding: 2px 4px;
+      font-size: 11px;
+    }
+
     /* --- timeline: asa, bandas, A-B --- */
     #timeline {
       position: relative;
@@ -1348,6 +1424,16 @@
       </span>
     </div>
     <div id="routesList" class="secBody"></div>
+    <div class="panel-title" data-sec="guidesList"><span><span class="chev">▾</span>Guiadores</span>
+      <span>
+        <button class="mini" id="btnGuideLockAll" title="Bloquear / desbloquear todos los guiadores">🔓</button>
+        <button class="mini" id="btnGuideVisAll" title="Ocultar / mostrar todos los guiadores">👁</button>
+        <button class="mini" id="btnGuideAddH" title="Añadir guiador horizontal (+H)">＋H</button>
+        <button class="mini" id="btnGuideAddV" title="Añadir guiador vertical (+V)">＋V</button>
+        <button class="mini" id="btnGuideClearAll" title="Eliminar todos los guiadores">🗑</button>
+      </span>
+    </div>
+    <div id="guidesList" class="secBody"></div>
   </div>
   <!-- Menú de rutas: fuera del panel para evitar el clipping por overflow:hidden -->
   <div id="routeMenu" class="menu">
@@ -1509,7 +1595,8 @@
       nodeEdit: null,   // {id|routeId, subs:[{nodes:[{x,y,hin,hout,smooth}],closed}], sel:{si,ni}}
       grid: { show: false, snap: false, size: 20 },
       showRoutes: false, routeHover: null, onion: false, speed: 1, abA: null, abB: null,
-      rulerOX: 0, rulerOY: 0  // offset del origen de las reglas en unidades del lienzo
+      rulerOX: 0, rulerOY: 0,  // offset del origen de las reglas en unidades del lienzo
+      guidesLocked: false, guidesHidden: false
     };
     const DEF_BASE = { tx: 0, ty: 0, rot: 0, sx: 1, sy: 1, skx: 0, sky: 0, opacity: 1, mp: 0, draw: 100 };
     const ANIM_PROPS = [
@@ -1668,7 +1755,7 @@
     /* ---------------- Render del lienzo ---------------- */
     function layerMarkup(l) {
       const a = l.attrs;
-      const st = (f = 1) => `${f && a.fill !== undefined ? ` fill="${esc(a.fill)}"` : ''}${a.stroke ? ` stroke="${esc(a.stroke)}" stroke-width="${a.sw || 1}"` : ' stroke="none"'}`;
+      const st = (f = 1) => `${f && a.fill !== undefined ? ` fill="${esc(a.fill)}"` : ''}${a.stroke && a.stroke !== 'none' && (a.sw === undefined || a.sw > 0) ? ` stroke="${esc(a.stroke)}" stroke-width="${a.sw || 1}"` : ' stroke="none"'}`;
       switch (l.type) {
         case 'rect': return `<rect x="${fmt(a.x)}" y="${fmt(a.y)}" width="${fmt(Math.max(0, a.w))}" height="${fmt(Math.max(0, a.h))}" rx="${fmt(a.rx || 0)}"${st()}/>`;
         case 'ellipse': return `<ellipse cx="${fmt(a.cx)}" cy="${fmt(a.cy)}" rx="${fmt(Math.max(0, a.rx))}" ry="${fmt(Math.max(0, a.ry))}"${st()}/>`;
@@ -1768,7 +1855,29 @@
       g.innerHTML = `<g stroke="#7c5cff" stroke-opacity="0.15" stroke-width="${1 / S.zoom}" style="pointer-events:none">${h}</g>`;
     }
     const snapV = v => S.grid.snap ? Math.round(v / S.grid.size) * S.grid.size : v;
-    const snapPt = p => S.grid.snap ? { x: snapV(p.x), y: snapV(p.y) } : p;
+    const snapPt = p => {
+      let x = p.x, y = p.y;
+      let snappedX = false, snappedY = false;
+      if (doc.guides && doc.guides.length && !S.guidesHidden) {
+        const tol = 10 / S.zoom;
+        let minDx = tol, minDy = tol;
+        for (const g of doc.guides) {
+          if (g.hidden) continue;
+          if (g.type === 'v') {
+            const d = Math.abs(p.x - g.pos);
+            if (d < minDx) { minDx = d; x = g.pos; snappedX = true; }
+          } else if (g.type === 'h') {
+            const d = Math.abs(p.y - g.pos);
+            if (d < minDy) { minDy = d; y = g.pos; snappedY = true; }
+          }
+        }
+      }
+      if (S.grid && S.grid.snap) {
+        if (!snappedX) x = snapV(x);
+        if (!snappedY) y = snapV(y);
+      }
+      return { x, y };
+    };
 
     function effProps(l, T) {
       return {
@@ -3311,7 +3420,7 @@
     };
     function loadUI() {
       const u = uiState();
-      for (const id of ['layersList', 'scenesList', 'routesList']) {
+      for (const id of ['layersList', 'scenesList', 'routesList', 'guidesList']) {
         if (u['sec_' + id]) {
           document.getElementById(id).classList.add('sec-collapsed');
           const t = document.querySelector(`.panel-title[data-sec="${id}"] .chev`);
@@ -3580,6 +3689,18 @@
 
         if (activeGuideDragId === g.id) return;
 
+        if (g.hidden || S.guidesHidden) {
+          el.style.display = 'none';
+          return;
+        } else {
+          el.style.display = 'flex';
+        }
+
+        const isLocked = !!(g.locked || S.guidesLocked);
+        const canDrag = !isLocked && S.tool === 'select';
+        el.style.pointerEvents = canDrag ? 'auto' : 'none';
+        el.classList.toggle('locked', isLocked);
+
         if (g.type === 'h') {
           const screenY = S.panY + g.pos * S.zoom;
           el.style.top = screenY + 'px';
@@ -3597,6 +3718,7 @@
     function bindGuideDrag(el, g) {
       el.addEventListener('pointerdown', e => {
         if (e.button !== 0) return;
+        if (g.locked || S.guidesLocked || S.tool !== 'select') return;
         e.preventDefault();
         e.stopPropagation();
         activeGuideDragId = g.id;
@@ -3654,12 +3776,14 @@
             snapshot();
             doc.guides = doc.guides.filter(item => item.id !== g.id);
             renderGuides();
+            renderGuidesPanel();
             showHint('Guía eliminada');
           } else {
             if (g.pos !== newCanvasPos) {
               snapshot();
               g.pos = newCanvasPos;
               renderGuides();
+              renderGuidesPanel();
               const axis = (g.type === 'h') ? 'Y' : 'X';
               const origin = (g.type === 'h') ? S.rulerOY : S.rulerOX;
               showHint(`Guía ${axis}: ${fmt(newCanvasPos - origin)} px`);
@@ -3677,20 +3801,24 @@
 
       // Atajos de conveniencia: doble clic o clic derecho para eliminar la guía
       el.addEventListener('dblclick', e => {
+        if (g.locked || S.guidesLocked || S.tool !== 'select') return;
         e.preventDefault();
         e.stopPropagation();
         snapshot();
         doc.guides = doc.guides.filter(item => item.id !== g.id);
         renderGuides();
+        renderGuidesPanel();
         showHint('Guía eliminada');
       });
 
       el.addEventListener('contextmenu', e => {
+        if (g.locked || S.guidesLocked || S.tool !== 'select') return;
         e.preventDefault();
         e.stopPropagation();
         snapshot();
         doc.guides = doc.guides.filter(item => item.id !== g.id);
         renderGuides();
+        renderGuidesPanel();
         showHint('Guía eliminada');
       });
     }
@@ -3748,8 +3876,9 @@
           if (screenY > 22) {
             snapshot();
             if (!doc.guides) doc.guides = [];
-            doc.guides.push({ id: guideId, type: 'h', pos: currentCanvasY });
+            doc.guides.push({ id: guideId, type: 'h', pos: currentCanvasY, locked: false, hidden: false });
             renderGuides();
+            renderGuidesPanel();
             showHint(`Guía horizontal colocada en Y: ${fmt(currentCanvasY - S.rulerOY)} px`);
           }
         }
@@ -3814,8 +3943,9 @@
           if (screenX > 22) {
             snapshot();
             if (!doc.guides) doc.guides = [];
-            doc.guides.push({ id: guideId, type: 'v', pos: currentCanvasX });
+            doc.guides.push({ id: guideId, type: 'v', pos: currentCanvasX, locked: false, hidden: false });
             renderGuides();
+            renderGuidesPanel();
             showHint(`Guía vertical colocada en X: ${fmt(currentCanvasX - S.rulerOX)} px`);
           }
         }
@@ -3825,6 +3955,174 @@
         rulerYEl.addEventListener('pointercancel', onUp);
         onMove(e);
       });
+    }
+
+    /* ---------------- Panel de Guiadores ---------------- */
+    function renderGuidesPanel() {
+      const el = $('#guidesList'); if (!el) return;
+      el.innerHTML = '';
+      if (!doc.guides) doc.guides = [];
+
+      const btnLockAll = $('#btnGuideLockAll');
+      if (btnLockAll) {
+        const anyLocked = doc.guides.some(g => g.locked) || S.guidesLocked;
+        const allLocked = doc.guides.length > 0 && doc.guides.every(g => g.locked);
+        btnLockAll.textContent = (allLocked || S.guidesLocked) ? '🔒' : '🔓';
+        btnLockAll.title = (allLocked || S.guidesLocked) ? 'Desbloquear todos los guiadores' : 'Bloquear todos los guiadores con candado';
+        btnLockAll.classList.toggle('active', !!(allLocked || S.guidesLocked));
+      }
+      const btnVisAll = $('#btnGuideVisAll');
+      if (btnVisAll) {
+        const allHidden = S.guidesHidden || (doc.guides.length > 0 && doc.guides.every(g => g.hidden));
+        btnVisAll.textContent = allHidden ? '🚫' : '👁';
+        btnVisAll.title = allHidden ? 'Mostrar todos los guiadores' : 'Ocultar todos los guiadores';
+        btnVisAll.classList.toggle('active', !!allHidden);
+      }
+
+      if (!doc.guides.length) {
+        el.innerHTML = '<div class="empty-note" style="padding:8px 10px">Sin guiadores. Arrastra desde las reglas o pulsa ＋H / ＋V para añadir.</div>';
+        return;
+      }
+
+      doc.guides.forEach((g, i) => {
+        const item = document.createElement('div');
+        item.className = 'guide-item' + (g.locked ? ' is-locked' : '') + (g.hidden ? ' is-hidden' : '');
+        item.dataset.id = g.id;
+
+        const isH = g.type === 'h';
+        const axisLabel = isH ? 'Y' : 'X';
+        const originOffset = isH ? S.rulerOY : S.rulerOX;
+        const rulerVal = fmt(g.pos - originOffset);
+
+        item.innerHTML = `
+          <span class="guide-badge ${isH ? 'badge-h' : 'badge-v'}" title="Guiador ${isH ? 'Horizontal' : 'Vertical'}">${g.type.toUpperCase()}</span>
+          <div class="gpos-wrap">
+            <span style="color:var(--txt2);font-size:11px;font-weight:600">${axisLabel}:</span>
+            <input type="number" step="1" class="guide-pos-input" value="${rulerVal}" title="Posición en px (relativa a la regla)">
+            <span style="color:var(--txt2);font-size:10px">px</span>
+          </div>
+          <button class="mini${g.locked ? ' active' : ''}" data-ga="lock" title="${g.locked ? 'Desbloquear guiador' : 'Bloquear guiador con candado'}">${g.locked ? '🔒' : '🔓'}</button>
+          <button class="mini${g.hidden ? ' active' : ''}" data-ga="vis" title="${g.hidden ? 'Mostrar guiador' : 'Ocultar guiador'}">${g.hidden ? '🚫' : '👁'}</button>
+          <button class="mini" data-ga="del" title="Eliminar este guiador">🗑</button>
+        `;
+
+        const inp = item.querySelector('.guide-pos-input');
+        inp.onchange = () => {
+          const val = parseFloat(inp.value) || 0;
+          snapshot();
+          g.pos = Math.round(val + originOffset);
+          renderGuides();
+          renderGuidesPanel();
+        };
+
+        item.onclick = e => {
+          const a = e.target.dataset.ga;
+          if (a === 'lock') {
+            snapshot();
+            g.locked = !g.locked;
+            renderGuides();
+            renderGuidesPanel();
+            showHint(g.locked ? 'Guiador bloqueado 🔒' : 'Guiador desbloqueado 🔓');
+            return;
+          }
+          if (a === 'vis') {
+            snapshot();
+            g.hidden = !g.hidden;
+            renderGuides();
+            renderGuidesPanel();
+            showHint(g.hidden ? 'Guiador oculto' : 'Guiador visible');
+            return;
+          }
+          if (a === 'del') {
+            snapshot();
+            doc.guides = doc.guides.filter(item => item.id !== g.id);
+            renderGuides();
+            renderGuidesPanel();
+            showHint('Guiador eliminado');
+            return;
+          }
+        };
+
+        item.onmouseenter = () => {
+          const cGuide = $(`#guidesContainer .canvas-guide[data-id="${g.id}"]`);
+          if (cGuide) cGuide.classList.add('hover-highlight');
+        };
+        item.onmouseleave = () => {
+          const cGuide = $(`#guidesContainer .canvas-guide[data-id="${g.id}"]`);
+          if (cGuide) cGuide.classList.remove('hover-highlight');
+        };
+
+        el.appendChild(item);
+      });
+    }
+
+    const btnGuideLockAllEl = $('#btnGuideLockAll');
+    if (btnGuideLockAllEl) {
+      btnGuideLockAllEl.onclick = () => {
+        snapshot();
+        const allLocked = doc.guides.length > 0 && doc.guides.every(g => g.locked);
+        const target = !allLocked;
+        doc.guides.forEach(g => g.locked = target);
+        S.guidesLocked = target;
+        renderGuides();
+        renderGuidesPanel();
+        showHint(target ? 'Todos los guiadores bloqueados 🔒' : 'Todos los guiadores desbloqueados 🔓');
+      };
+    }
+
+    const btnGuideVisAllEl = $('#btnGuideVisAll');
+    if (btnGuideVisAllEl) {
+      btnGuideVisAllEl.onclick = () => {
+        snapshot();
+        const allHidden = S.guidesHidden || (doc.guides.length > 0 && doc.guides.every(g => g.hidden));
+        const target = !allHidden;
+        doc.guides.forEach(g => g.hidden = target);
+        S.guidesHidden = target;
+        renderGuides();
+        renderGuidesPanel();
+        showHint(target ? 'Guiadores ocultos' : 'Guiadores visibles');
+      };
+    }
+
+    const btnGuideAddHEl = $('#btnGuideAddH');
+    if (btnGuideAddHEl) {
+      btnGuideAddHEl.onclick = () => {
+        snapshot();
+        if (!doc.guides) doc.guides = [];
+        const pos = Math.round(doc.h / 2);
+        const id = 'g_' + uid();
+        doc.guides.push({ id, type: 'h', pos, locked: false, hidden: false });
+        renderGuides();
+        renderGuidesPanel();
+        showHint(`Guiador horizontal añadido en Y: ${fmt(pos - S.rulerOY)} px`);
+      };
+    }
+
+    const btnGuideAddVEl = $('#btnGuideAddV');
+    if (btnGuideAddVEl) {
+      btnGuideAddVEl.onclick = () => {
+        snapshot();
+        if (!doc.guides) doc.guides = [];
+        const pos = Math.round(doc.w / 2);
+        const id = 'g_' + uid();
+        doc.guides.push({ id, type: 'v', pos, locked: false, hidden: false });
+        renderGuides();
+        renderGuidesPanel();
+        showHint(`Guiador vertical añadido en X: ${fmt(pos - S.rulerOX)} px`);
+      };
+    }
+
+    const btnGuideClearAllEl = $('#btnGuideClearAll');
+    if (btnGuideClearAllEl) {
+      btnGuideClearAllEl.onclick = () => {
+        if (!doc.guides || !doc.guides.length) return;
+        if (!confirm('¿Eliminar todos los guiadores?')) return;
+        snapshot();
+        doc.guides = [];
+        renderGuides();
+        renderGuidesPanel();
+        showHint('Todos los guiadores eliminados');
+      };
     }
 
     function routeMarkup(d, editing) {
@@ -4209,9 +4507,10 @@
         h += `<div class="prow"><label>Relleno</label><input type="color" data-cprop="fill" value="${hexRgb(p.fill) ? rgbHex(hexRgb(p.fill)) : '#7c5cff'}">
         <button class="mini" data-a="nofill" title="Sin relleno">∅</button>${kBtn('fill')}</div>`;
       if (l.type !== 'raw' && l.type !== 'image') {
+        const hasStroke = !!(a.stroke && a.stroke !== 'none');
         h += `<div class="prow"><label>Trazo</label><input type="color" data-cattr="stroke" value="${hexRgb(a.stroke || '') ? rgbHex(hexRgb(a.stroke)) : '#000000'}">
-        <button class="mini" data-a="nostroke" title="Sin trazo">∅</button>${l.type === 'line' ? kBtn('fill') : ''}</div>`;
-        h += attrRow('Grosor', 'sw', a.sw || 1, 0.5);
+        <button class="mini${!hasStroke ? ' active' : ''}" data-a="nostroke" title="Sin trazo">∅</button>${l.type === 'line' ? kBtn('fill') : ''}</div>`;
+        h += attrRow('Grosor', 'sw', a.sw !== undefined ? a.sw : (hasStroke ? 1 : 0), 0.5);
         if (l.type !== 'text') h += numRow('Dibujo %', 'draw', p.draw, 1);
       }
       h += pgEnd;
@@ -4395,6 +4694,14 @@
           const raw = parseFloat(inp.value) || 0;
           const axis = inp.dataset.rulerAxis;
           l.attrs[inp.dataset.attr] = axis ? fromRuler(raw, axis) : raw;
+          if (inp.dataset.attr === 'sw') {
+            if ((!l.attrs.stroke || l.attrs.stroke === 'none') && raw > 0) {
+              const strokeInp = body.querySelector('[data-cattr="stroke"]');
+              l.attrs.stroke = (strokeInp && strokeInp.value) ? strokeInp.value : '#000000';
+              const noStrokeBtn = body.querySelector('[data-a="nostroke"]');
+              if (noStrokeBtn) noStrokeBtn.classList.remove('active');
+            }
+          }
           keyGeom(l); render();
         };
       });
@@ -4411,7 +4718,27 @@
         inp.oninput = () => { editSnap(); writeProp(l, 'fill', inp.value); if (!keysOf(l.id, 'fill')) render(); else applyFrame(S.T); renderTimeline(); };
       });
       body.querySelectorAll('[data-cattr]').forEach(inp => {
-        inp.oninput = () => { editSnap(); l.attrs[inp.dataset.cattr] = inp.value; render(); };
+        const updateColor = () => {
+          editSnap();
+          l.attrs[inp.dataset.cattr] = inp.value;
+          if (inp.dataset.cattr === 'stroke') {
+            if (!l.attrs.sw || l.attrs.sw <= 0) {
+              l.attrs.sw = 1;
+              const swInp = body.querySelector('[data-attr="sw"]');
+              if (swInp) swInp.value = '1';
+            }
+            const noStrokeBtn = body.querySelector('[data-a="nostroke"]');
+            if (noStrokeBtn) noStrokeBtn.classList.remove('active');
+          }
+          render();
+        };
+        inp.oninput = updateColor;
+        inp.onchange = updateColor;
+        inp.addEventListener('click', () => {
+          if (inp.dataset.cattr === 'stroke' && (!l.attrs.stroke || l.attrs.stroke === 'none')) {
+            updateColor();
+          }
+        });
       });
       body.querySelectorAll('[data-kprop]').forEach(b => { b.onclick = () => toggleKey(l, b.dataset.kprop); });
       body.querySelectorAll('[data-org]').forEach(inp => {
@@ -4568,6 +4895,7 @@
         }
       }
       drawOverlay();
+      renderGuides();
       const hints = {
         pen: 'Pluma: clic añade nodos · clic y ARRASTRA crea curvas · clic en el 1er punto cierra · Enter termina · Esc cancela',
         route: 'Ruta de animación: con el objeto seleccionado, arrastra para dibujar su trayectoria a mano alzada',
@@ -5470,7 +5798,7 @@
     }
 
     /* ---------------- Refresco global ---------------- */
-    function refreshPanels() { renderLayersPanel(); renderScenesPanel(); renderRoutesPanel(); renderProps(); renderTimeline(); }
+    function refreshPanels() { renderLayersPanel(); renderScenesPanel(); renderRoutesPanel(); renderGuidesPanel(); renderProps(); renderTimeline(); }
     function refresh() {
       render();
       renderGuides();
