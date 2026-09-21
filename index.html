@@ -1493,6 +1493,8 @@
     const NS = 'http://www.w3.org/2000/svg';
     const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
     const uid = () => 'el' + Math.random().toString(36).slice(2, 9);
+    // Portapapeles interno de capas
+    let layerClipboard = []; // [{ layer, anims }]
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const fmt = n => Math.abs(n - Math.round(n)) < 1e-6 ? String(Math.round(n)) : (+(+n).toFixed(3)).toString();
 
@@ -1866,15 +1868,31 @@
         const r = getRoute(rid); if (!r) continue;
         ov.innerHTML += routeMarkup(r.d, S.nodeEdit && S.nodeEdit.routeId === rid);
       }
+      // Dibujar rectángulo de marquesina (rubber-band)
+      if (gesture && gesture.kind === 'marquee' && gesture.moved) {
+        const rx = Math.min(gesture.sx, gesture.ex), ry = Math.min(gesture.sy, gesture.ey);
+        const rw = Math.abs(gesture.ex - gesture.sx), rh = Math.abs(gesture.ey - gesture.sy);
+        ov.innerHTML += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="rgba(124,92,255,0.08)" stroke="#7c5cff" stroke-width="${1 / S.zoom}" stroke-dasharray="${3 / S.zoom}" style="pointer-events:none"/>`;
+      }
       if (S.tool === 'node') { drawNodeOverlay(ov); return; }
       if (S.tool !== 'select') return;
       for (const l of selLayers()) {
         if (l.id === S.sel || !l._bb) continue;
         const cs = worldCorners(l);
-        ov.innerHTML += `<polygon points="${cs.map(p => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#00c2a8" stroke-width="${1 / S.zoom}" stroke-dasharray="${3 / S.zoom}" style="pointer-events:none"/>`;
+        const hs = 6 / S.zoom;
+        let cHtml = `<polygon points="${cs.map(p => p.x + ',' + p.y).join(' ')}" fill="rgba(0,194,168,0.06)" stroke="#00c2a8" stroke-width="${1.5 / S.zoom}" stroke-dasharray="${3 / S.zoom}" style="pointer-events:none"/>`;
+        cs.forEach(p => {
+          cHtml += `<rect x="${p.x - hs / 2}" y="${p.y - hs / 2}" width="${hs}" height="${hs}" fill="#00c2a8" stroke="#fff" stroke-width="${0.8 / S.zoom}" style="pointer-events:none"/>`;
+        });
+        ov.innerHTML += cHtml;
       }
       const l = selLayer();
       if (!l || !l._bb) return;
+      if (l.locked) {
+        const cs = worldCorners(l);
+        ov.innerHTML += `<polygon points="${cs.map(p => p.x + ',' + p.y).join(' ')}" fill="none" stroke="#ff5470" stroke-width="${1 / S.zoom}" stroke-dasharray="${4 / S.zoom}" style="pointer-events:none"/>`;
+        return;
+      }
       if (l.motion && l.motion.d)
         ov.innerHTML += routeMarkup(l.motion.d, false);
       const m = layerMatrix(l, S.T), bb = l._bb;
@@ -2028,6 +2046,53 @@
       if (anims[id]) anims[c.id] = JSON.parse(JSON.stringify(anims[id]));
       doc.layers.push(c); selectOnly(c.id);
       refresh();
+    }
+    /* ---------- Copiar / Cortar / Pegar ---------- */
+    function copySelection() {
+      const ls = selLayers();
+      if (!ls.length) return;
+      layerClipboard = ls.map(l => ({
+        layer: JSON.parse(JSON.stringify(l)),
+        anim:  anims[l.id] ? JSON.parse(JSON.stringify(anims[l.id])) : null
+      }));
+      showHint(`${ls.length === 1 ? '"' + ls[0].name + '"' : ls.length + ' capas'} copiado${ls.length > 1 ? 's' : ''} al portapapeles`);
+    }
+    function cutSelection() {
+      copySelection();
+      if (!layerClipboard.length) return;
+      snapshot();
+      layerClipboard.forEach(({ layer }) => {
+        const idx = doc.layers.findIndex(l => l.id === layer.id);
+        if (idx >= 0) { delete anims[layer.id]; doc.layers.splice(idx, 1); }
+      });
+      selectOnly(null); refresh();
+    }
+    function pasteClipboard() {
+      if (!layerClipboard.length) return;
+      snapshot();
+      const OFF = 15;
+      const newIds = [];
+      layerClipboard.forEach(({ layer, anim }) => {
+        const c = JSON.parse(JSON.stringify(layer));
+        c.id = uid();
+        c.name = layer.name + ' copia';
+        const a = c.attrs;
+        // Hornear el desplazamiento directamente en los atributos geométricos
+        // de cada tipo para que neMatrix() y los nodos editados sean coherentes.
+        if (c.type === 'rect')         { a.x  = (a.x  || 0) + OFF; a.y  = (a.y  || 0) + OFF; }
+        else if (c.type === 'ellipse') { a.cx = (a.cx || 0) + OFF; a.cy = (a.cy || 0) + OFF; }
+        else if (c.type === 'polygon') { a.cx = (a.cx || 0) + OFF; a.cy = (a.cy || 0) + OFF; }
+        else if (c.type === 'line')    { a.x1 = (a.x1 || 0) + OFF; a.y1 = (a.y1 || 0) + OFF;
+                                         a.x2 = (a.x2 || 0) + OFF; a.y2 = (a.y2 || 0) + OFF; }
+        else if (c.type === 'text')    { a.x  = (a.x  || 0) + OFF; a.y  = (a.y  || 0) + OFF; }
+        else { c.base.tx = (c.base.tx || 0) + OFF; c.base.ty = (c.base.ty || 0) + OFF; }
+        if (anim) anims[c.id] = JSON.parse(JSON.stringify(anim));
+        doc.layers.push(c);
+        newIds.push(c.id);
+      });
+      S.selSet = new Set(newIds); S.sel = newIds[0]; S.selKf = null;
+      refresh();
+      showHint(newIds.length === 1 ? 'Capa pegada (+15 px)' : newIds.length + ' capas pegadas (+15 px)');
     }
     function moveLayer(id, dir) {
       const i = doc.layers.findIndex(l => l.id === id); if (i < 0) return;
@@ -2276,6 +2341,43 @@
       return rings.slice(1).reduce((acc, r) => polygonClipping.xor(acc, [[r]]), [[rings[0]]]);
     }
 
+    /* Devuelve true si los comandos de un layer contienen al menos un subpath abierto (sin Z al cierre) */
+    function layerHasOpenPath(l) {
+      const cmds = shapeToD(l);
+      if (!cmds) return false;
+      // Dividir en subpaths y revisar si alguno no termina en Z
+      const subpaths = [];
+      let cur = [];
+      for (const c of cmds) {
+        if (c[0] === 'M' && cur.length > 0) { subpaths.push(cur); cur = [c]; }
+        else cur.push(c);
+      }
+      if (cur.length > 0) subpaths.push(cur);
+      return subpaths.some(sp => sp[sp.length - 1][0] !== 'Z');
+    }
+
+    /* Concatena los subpaths originales de varios layers sin cerrarlos */
+    function concatOpenPaths(layerList) {
+      const parts = [];
+      for (const l of layerList) {
+        const cmds = shapeToD(l);
+        if (!cmds) continue;
+        // Aplicar transformación de mundo a cada punto
+        const m = layerMatrix(l, S.T);
+        const worldCmds = cmds.map(c => {
+          if (c[0] === 'Z') return ['Z'];
+          const o = [c[0]];
+          for (let i = 1; i < c.length; i += 2) {
+            const p = m.transformPoint(new DOMPoint(c[i], c[i + 1]));
+            o.push(p.x, p.y);
+          }
+          return o;
+        });
+        parts.push(dToStr(worldCmds));
+      }
+      return parts.join(' ');
+    }
+
     function booleanOpSelection(op) {
       const selIds = [...S.selSet];
       let ls = selIds.map(id => getLayer(id)).filter(l => l && ['rect', 'ellipse', 'polygon', 'path'].includes(l.type));
@@ -2287,6 +2389,43 @@
         showHint('Selecciona 2 o más formas (rect., elipse, polígono o trazado)');
         return;
       }
+
+      // ── Detectar si algún trazado tiene nodos abiertos ──────────────────────
+      const hasOpenPaths = ls.some(l => layerHasOpenPath(l));
+
+      // Si hay trazados abiertos y la operación es 'union', concatenar subpaths
+      // directamente sin pasar por polygonClipping (que fuerza el cierre).
+      if (hasOpenPaths && op === 'union') {
+        const first = ls[0];
+        const ids = new Set(ls.map(l => l.id));
+        const idx = doc.layers.findIndex(l => ids.has(l.id));
+        const d = concatOpenPaths(ls);
+        if (!d) { showHint('No se pudo combinar los trazados'); return; }
+        snapshot();
+        doc.layers = doc.layers.filter(l => !ids.has(l.id));
+        ids.forEach(id => delete anims[id]);
+        const newLayer = {
+          id: uid(),
+          name: 'Unión',
+          type: 'path',
+          attrs: {
+            d,
+            fill: first.attrs.fill !== undefined ? first.attrs.fill : '',
+            stroke: first.attrs.stroke !== undefined ? first.attrs.stroke : (first.attrs.stroke || ''),
+            sw: first.attrs.sw !== undefined ? first.attrs.sw : 1
+          },
+          base: { ...DEF_BASE },
+          visible: true,
+          locked: false
+        };
+        doc.layers.splice(idx, 0, newLayer);
+        S.selSet = new Set([newLayer.id]);
+        S.sel = newLayer.id;
+        refresh();
+        showHint('Unión creada');
+        return;
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       const geoms = [];
       try {
@@ -2338,7 +2477,7 @@
           d: multiPolyToD(res),
           fill: first.attrs.fill, stroke: first.attrs.stroke, sw: first.attrs.sw
         }]);
-        showHint('Unión creada');
+        showHint('Unión creada (formas cerradas)');
       } else if (op === 'combine') {
         const res = polygonClipping.xor(...geoms.map(g => g.mp));
         if (!res || !res.length) { showHint('El resultado de la combinación está vacío'); return; }
@@ -2541,13 +2680,17 @@
       return l;
     }
     function enterNodeEdit(l) {
-      if (!l) return;
+      if (!l || l.locked) return;
       if (l.type !== 'path') {
         selectOnly(l.id);
         l = convertToPath(l);
         if (!l) return;
       }
-      try { S.nodeEdit = { id: l.id, subs: nodesFromD(l.attrs.d), sel: null }; }
+      try {
+        const subs = nodesFromD(l.attrs.d);
+        const sel = (subs.length && subs[0].nodes.length) ? { si: 0, ni: 0 } : null;
+        S.nodeEdit = { id: l.id, subs, sel };
+      }
       catch (e) { alert('Este trazado contiene comandos no compatibles con la edición de nodos (arcos o coordenadas relativas).'); S.nodeEdit = null; return; }
       selectOnly(l.id);
       refreshPanels(); drawOverlay();
@@ -2772,10 +2915,17 @@
     }
     function drawNodeOverlay(ov) {
       const ne = S.nodeEdit; if (!ne) return;
-      if (!ne.routeId && !getLayer(ne.id)) return;
+      if (!ne.routeId) {
+        const l = getLayer(ne.id);
+        if (!l || l.locked || !l.visible || S.sel !== ne.id) {
+          S.nodeEdit = null;
+          return;
+        }
+      }
       const m = neMatrix();
       const W = p => m.transformPoint(new DOMPoint(p.x, p.y));
       const hs = 7 / S.zoom, hr = 3.5 / S.zoom;
+      const hitA = 18 / S.zoom, hitH = 16 / S.zoom;
       let hnd = '', anc = '';
       ne.subs.forEach((sub, si) => {
         sub.nodes.forEach((n, ni) => {
@@ -2784,11 +2934,13 @@
             if (n[w]) {
               const H = W(n[w]);
               hnd += `<line x1="${P.x}" y1="${P.y}" x2="${H.x}" y2="${H.y}" stroke="#00c2a8" stroke-width="${1 / S.zoom}" style="pointer-events:none"/>`
-                + `<circle data-nh="${si}:${ni}:${w}" cx="${H.x}" cy="${H.y}" r="${hr}" fill="#00c2a8" stroke="#fff" stroke-width="${0.8 / S.zoom}" style="cursor:move"/>`;
+                + `<circle data-nh="${si}:${ni}:${w}" cx="${H.x}" cy="${H.y}" r="${hitH / 2}" fill="transparent" stroke="none" style="cursor:move"/>`
+                + `<circle cx="${H.x}" cy="${H.y}" r="${hr}" fill="#00c2a8" stroke="#fff" stroke-width="${0.8 / S.zoom}" style="pointer-events:none"/>`;
             }
           }
           const sel = ne.sel && ne.sel.si === si && ne.sel.ni === ni;
-          anc += `<rect data-nd="${si}:${ni}" x="${P.x - hs / 2}" y="${P.y - hs / 2}" width="${hs}" height="${hs}" fill="${sel ? '#7c5cff' : '#fff'}" stroke="#7c5cff" stroke-width="${1 / S.zoom}" style="cursor:move"${n.smooth ? ' rx="' + hs / 2 + '"' : ''}/>`;
+          anc += `<rect data-nd="${si}:${ni}" x="${P.x - hitA / 2}" y="${P.y - hitA / 2}" width="${hitA}" height="${hitA}" fill="transparent" stroke="none" style="cursor:pointer"/>`
+            + `<rect x="${P.x - hs / 2}" y="${P.y - hs / 2}" width="${hs}" height="${hs}" fill="${sel ? '#7c5cff' : '#fff'}" stroke="#7c5cff" stroke-width="${1.2 / S.zoom}" style="pointer-events:none"${n.smooth ? ' rx="' + hs / 2 + '"' : ''}/>`;
         });
       });
       ov.innerHTML += hnd + anc;
@@ -3919,8 +4071,19 @@
       <button class="mini" data-a="lock" title="${l.locked ? 'Desbloquear' : 'Bloquear'}" style="${l.locked ? 'background:rgba(255,84,112,0.15);border-color:rgba(255,84,112,0.35);opacity:1;' : ''}">${lockSvg}</button>`;
         d.onclick = e => {
           const a = e.target.dataset.a;
-          if (a === 'eye') { l.visible = !l.visible; refresh(); return; }
-          if (a === 'lock') { l.locked = !l.locked; renderLayersPanel(); return; }
+          if (a === 'eye') {
+            l.visible = !l.visible;
+            if (!l.visible && S.nodeEdit && S.nodeEdit.id === l.id) S.nodeEdit = null;
+            refresh();
+            return;
+          }
+          if (a === 'lock') {
+            l.locked = !l.locked;
+            if (l.locked && S.nodeEdit && S.nodeEdit.id === l.id) S.nodeEdit = null;
+            renderLayersPanel();
+            drawOverlay();
+            return;
+          }
           selectLayer(l.id, e.shiftKey || e.ctrlKey || e.metaKey);
         };
         d.ondblclick = e => {
@@ -3934,17 +4097,42 @@
         el.appendChild(d);
       });
     }
-    function selectOnly(id) { S.sel = id; S.selSet = new Set(id ? [id] : []); S.selKf = null; }
+    function selectOnly(id) {
+      if (S.nodeEdit && S.nodeEdit.id !== id) S.nodeEdit = null;
+      S.sel = id;
+      S.selSet = new Set(id ? [id] : []);
+      S.selKf = null;
+    }
     function paintLayerSelection() {
       $$('#layersList .layer-item').forEach(el => el.classList.toggle('selected', S.selSet.has(el.dataset.id)));
     }
     function selectLayer(id, additive) {
       if (additive) {
-        if (S.selSet.has(id) && S.sel !== id) S.selSet.delete(id);
-        else { S.selSet.add(id); S.sel = id; }
+        if (S.selSet.has(id)) {
+          S.selSet.delete(id);
+          if (S.sel === id) {
+            S.sel = S.selSet.size ? [...S.selSet][S.selSet.size - 1] : null;
+          }
+        } else {
+          S.selSet.add(id);
+          S.sel = id;
+        }
         if (!S.selSet.size) S.sel = null;
         else if (!S.selSet.has(S.sel)) S.sel = [...S.selSet][0];
-      } else selectOnly(id);
+        if (S.nodeEdit && (!S.sel || S.selSet.size !== 1 || S.nodeEdit.id !== S.sel)) {
+          S.nodeEdit = null;
+        }
+      } else {
+        selectOnly(id);
+        if (S.tool === 'node') {
+          const l = id ? getLayer(id) : null;
+          if (l && !l.locked && ['path', 'rect', 'ellipse', 'polygon', 'line'].includes(l.type)) {
+            if (!S.nodeEdit || S.nodeEdit.id !== l.id) enterNodeEdit(l);
+          } else {
+            S.nodeEdit = null;
+          }
+        }
+      }
       S.selKf = null;
       paintLayerSelection();
       renderProps(); renderTimeline();
@@ -4072,9 +4260,12 @@
               const nature = (!hasIn && !hasOut) ? 'corner' : (n.smooth ? 'smooth' : 'independent');
 
               h += `<div style="background:rgba(124,92,255,.08); border:1px solid rgba(124,92,255,.2); border-radius:6px; padding:6px 8px; margin-bottom:10px">
-            <div style="font-weight:600; font-size:11px; color:var(--accent2); margin-bottom:6px; display:flex; justify-content:space-between">
-              <span>PUNTO #${ne.sel.ni + 1} ${sub.closed ? '(cerrado)' : '(abierto)'}</span>
-              <span style="font-weight:normal; color:var(--txt2)">Subtrazado ${ne.sel.si + 1}/${ne.subs.length}</span>
+            <div style="font-weight:600; font-size:11px; color:var(--accent2); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center">
+              <span>PUNTO #${ne.sel.ni + 1} de ${sub.nodes.length} ${sub.closed ? '(cerrado)' : '(abierto)'}</span>
+              <div style="display:flex; gap:3px">
+                <button class="mini" data-na="prevnode" title="Punto anterior" style="padding:1px 6px">◀</button>
+                <button class="mini" data-na="nextnode" title="Punto siguiente" style="padding:1px 6px">▶</button>
+              </div>
             </div>
             <div class="prow" style="margin-bottom:6px"><label style="width:70px">Tipo nodo</label>
               <div style="display:flex; gap:3px; flex:1">
@@ -4130,7 +4321,14 @@
           </div>`;
             }
           } else if (S.tool === 'node' && S.nodeEdit) {
-            h += `<div class="empty-note" style="padding:4px 0 8px; color:var(--accent2)">Modo edición de nodos: haz clic en un punto del trazado para configurar sus handles y curvatura.</div>`;
+            const sub0 = S.nodeEdit.subs && S.nodeEdit.subs[0];
+            const ptsCount = sub0 ? sub0.nodes.length : 0;
+            h += `<div style="background:rgba(124,92,255,.06); border:1px dashed rgba(124,92,255,.3); border-radius:6px; padding:8px; margin-bottom:10px">
+              <div style="color:var(--accent2); font-weight:600; margin-bottom:4px">Selecciona un punto para cambiar su naturaleza:</div>
+              <div style="display:flex; gap:4px; flex-wrap:wrap; margin-top:4px">
+                ${Array.from({ length: ptsCount }, (_, i) => `<button class="mini" data-na="picknode" data-idx="${i}" style="padding:2px 8px">Punto #${i + 1}</button>`).join('')}
+              </div>
+            </div>`;
           }
           h += `<div class="prow"><label>Ruta d</label><input type="text" data-tattr="d" value="${esc(a.d)}"></div>`
             + `<div class="prow"><label></label><button class="mini${S.tool === 'node' ? ' active' : ''}" data-a="nodes">✒ Editar nodos (A)</button>
@@ -4231,7 +4429,14 @@
         nofill: () => { snapshot(); l.attrs.fill = 'none'; render(); renderProps(); },
         nostroke: () => { snapshot(); l.attrs.stroke = ''; render(); renderProps(); },
         fliph: () => flipSel('h'), flipv: () => flipSel('v'), rotl: () => rotateSel(-90), rotr: () => rotateSel(90),
-        centerorg: centerOrigin, smooth: smoothSelection, nodes: () => setTool('node'),
+        centerorg: centerOrigin, smooth: smoothSelection,
+        nodes: () => {
+          setTool('node');
+          const l = selLayer();
+          if (l) enterNodeEdit(l);
+          refreshPanels();
+          drawOverlay();
+        },
         bold: () => { snapshot(); l.attrs.fw = (l.attrs.fw === 'bold' || +l.attrs.fw >= 600) ? 'normal' : 'bold'; render(); renderProps(); },
         italic: () => { snapshot(); l.attrs.fst = !l.attrs.fst; render(); renderProps(); },
         under: () => { snapshot(); l.attrs.td = !l.attrs.td; render(); renderProps(); },
@@ -4267,12 +4472,31 @@
       body.querySelectorAll('[data-a]').forEach(b => { b.onclick = () => acts[b.dataset.a] && acts[b.dataset.a](); });
       body.querySelectorAll('[data-na]').forEach(b => {
         b.onclick = () => {
-          const ne = S.nodeEdit; if (!ne || !ne.sel) return;
+          const ne = S.nodeEdit; if (!ne) return;
           const na = b.dataset.na;
+          if (na === 'picknode') {
+            const idx = +b.dataset.idx;
+            ne.sel = { si: 0, ni: idx };
+            renderProps(); drawOverlay();
+            return;
+          }
+          if (!ne.sel) return;
           if (na === 'nature') setNodeNature(ne.sel.si, ne.sel.ni, b.dataset.val);
           else if (na === 'tghin') toggleNodeHandle(ne.sel.si, ne.sel.ni, 'hin');
           else if (na === 'tghout') toggleNodeHandle(ne.sel.si, ne.sel.ni, 'hout');
           else if (na === 'delnode') deleteSelNode();
+          else if (na === 'prevnode') {
+            const sub = ne.subs[ne.sel.si];
+            const nextNi = (ne.sel.ni - 1 + sub.nodes.length) % sub.nodes.length;
+            ne.sel = { si: ne.sel.si, ni: nextNi };
+            renderProps(); drawOverlay();
+          }
+          else if (na === 'nextnode') {
+            const sub = ne.subs[ne.sel.si];
+            const nextNi = (ne.sel.ni + 1) % sub.nodes.length;
+            ne.sel = { si: ne.sel.si, ni: nextNi };
+            renderProps(); drawOverlay();
+          }
         };
       });
       const inNx = body.querySelector('#inpNodeX'), inNy = body.querySelector('#inpNodeY');
@@ -4337,7 +4561,11 @@
       area.className = ''; area.classList.add('tool-' + t);
       if (t === 'node') {
         const l = selLayer();
-        if (l && !S.nodeEdit) enterNodeEdit(l);
+        if (l && !l.locked && ['path', 'rect', 'ellipse', 'polygon', 'line'].includes(l.type)) {
+          if (!S.nodeEdit || S.nodeEdit.id !== l.id) enterNodeEdit(l);
+        } else {
+          S.nodeEdit = null;
+        }
       }
       drawOverlay();
       const hints = {
@@ -4401,14 +4629,59 @@
           if (e.detail >= 2) insertNodeAt(pt);
           return;
         }
-        const g = e.target.closest('g.layer');
-        if (g) {
-          const l2 = getLayer(g.dataset.id);
-          if (ne && !ne.routeId && l2 && l2.id === ne.id) {
-            if (e.detail >= 2) { insertNodeAt(pt); return; }
+
+        // Búsqueda de proximidad: si el clic fue cerca de cualquier nodo del trazado
+        if (ne) {
+          const m = neMatrix();
+          const W = p => m.transformPoint(new DOMPoint(p.x, p.y));
+          let closest = null, minDist = 22 / S.zoom;
+          ne.subs.forEach((sub, si) => {
+            sub.nodes.forEach((n, ni) => {
+              const P = W(n);
+              const d = Math.hypot(P.x - pt.x, P.y - pt.y);
+              if (d < minDist) { minDist = d; closest = { si, ni, n }; }
+            });
+          });
+          if (closest) {
+            ne.sel = { si: closest.si, ni: closest.ni };
+            if (e.detail >= 2) { toggleNodeSmooth(closest.si, closest.ni); return; }
+            snapshot();
+            const q = m.inverse().transformPoint(new DOMPoint(pt.x, pt.y));
+            gesture = { kind: 'nanchor', si: closest.si, ni: closest.ni, ox: q.x - closest.n.x, oy: q.y - closest.n.y, moved: false };
+            drawOverlay();
+            renderProps();
             return;
           }
-          if (l2 && !l2.locked) { enterNodeEdit(l2); return; }
+        }
+
+        const g = e.target.closest('g.layer');
+        const l2 = g ? getLayer(g.dataset.id) : null;
+        if (l2 && !l2.locked) {
+          const isShift = e.shiftKey || e.ctrlKey || e.metaKey;
+          if (isShift) {
+            setTool('select');
+            selectLayer(l2.id, true);
+            return;
+          }
+          if (ne && !ne.routeId && l2.id === ne.id) {
+            if (e.detail >= 2) { insertNodeAt(pt); return; }
+            // Clic sobre el cuerpo del propio trazado: seleccionar el nodo más próximo
+            let bestNode = null, bestD = Infinity;
+            const m = neMatrix(), W = p => m.transformPoint(new DOMPoint(p.x, p.y));
+            ne.subs.forEach((sub, si) => {
+              sub.nodes.forEach((n, ni) => {
+                const P = W(n), d = Math.hypot(P.x - pt.x, P.y - pt.y);
+                if (d < bestD) { bestD = d; bestNode = { si, ni }; }
+              });
+            });
+            if (bestNode) {
+              ne.sel = bestNode;
+              drawOverlay();
+              renderProps();
+            }
+            return;
+          }
+          enterNodeEdit(l2);
           return;
         }
         if (ne && !ne.routeId && e.detail >= 2) {
@@ -4418,6 +4691,7 @@
           ne.sel = null;
           drawOverlay();
           renderProps();
+          return;
         }
         return;
       }
@@ -4456,19 +4730,33 @@
               insertNodeAt(pt);
               return;
             }
-            if (e.shiftKey || e.ctrlKey || e.metaKey) selectLayer(l2.id, true);
-            else if (!S.selSet.has(l2.id)) { selectOnly(l2.id); refreshPanels(); drawOverlay(); }
-            else { S.sel = l2.id; refreshPanels(); drawOverlay(); }
+            const isShift = e.shiftKey || e.ctrlKey || e.metaKey;
+            if (isShift) {
+              const wasSelected = S.selSet.has(l2.id);
+              selectLayer(l2.id, true);
+              if (wasSelected) return; // Si se deselecciona con Shift+clic, no iniciar arrastre
+            } else if (!S.selSet.has(l2.id)) {
+              selectOnly(l2.id);
+              refreshPanels();
+              drawOverlay();
+            } else {
+              S.sel = l2.id;
+              refreshPanels();
+              drawOverlay();
+            }
             snapshot();
             const starts = selLayers().filter(x => !x.locked).map(x => {
               const px = effProps(x, S.T);
               return { l: x, tx0: px.tx, ty0: px.ty };
             });
             gesture = { kind: 'move', starts, sx: pt.x, sy: pt.y, moved: false };
+            return; // ← retornar solo si la capa es manejable (no bloqueada)
           }
-          return;
+          // Capa bloqueada o no encontrada → caer al marquee como si fuera área vacía
         }
-        if (S.sel) { selectOnly(null); refreshPanels(); drawOverlay(); }
+        // Área vacía (o capa bloqueada): iniciar gesto de marquesina
+        const isShift = e.shiftKey || e.ctrlKey || e.metaKey;
+        gesture = { kind: 'marquee', sx: pt.x, sy: pt.y, ex: pt.x, ey: pt.y, moved: false, additive: isShift };
         return;
       }
       if (['rect', 'ellipse', 'line', 'polygon'].includes(S.tool)) {
@@ -4567,6 +4855,12 @@
           }
           commitNodes(); break;
         }
+        case 'marquee': {
+          gesture.ex = pt.x; gesture.ey = pt.y;
+          gesture.moved = Math.hypot(pt.x - gesture.sx, pt.y - gesture.sy) > 4 / S.zoom;
+          drawOverlay();
+          break;
+        }
         case 'routedraw': {
           const ps = gesture.pts, q = ps[ps.length - 1];
           if (Math.hypot(pt.x - q[0], pt.y - q[1]) > 3 / S.zoom) { ps.push([pt.x, pt.y]); drawOverlay(); }
@@ -4605,6 +4899,44 @@
     area.addEventListener('pointerup', e => {
       if (!gesture) return;
       if (gesture.kind === 'pan') area.classList.remove('panning');
+      if (gesture.kind === 'marquee') {
+        const g = gesture;
+        gesture = null; // limpiar ANTES de drawOverlay para que no redibuje el rectángulo
+        if (!g.moved) {
+          // Clic simple en área vacía: si no fue con Shift, deseleccionar
+          if (!g.additive) {
+            if (S.sel) { selectOnly(null); refreshPanels(); }
+            drawOverlay();
+          }
+        } else {
+          // Arrastre → seleccionar capas dentro del rectángulo
+          const rx1 = Math.min(g.sx, g.ex), ry1 = Math.min(g.sy, g.ey);
+          const rx2 = Math.max(g.sx, g.ex), ry2 = Math.max(g.sy, g.ey);
+          const hit = doc.layers.filter(l => {
+            if (l.locked || !l._bb) return false;
+            const wb = worldBBox(l);
+            return wb.x < rx2 && wb.x + wb.w > rx1 && wb.y < ry2 && wb.y + wb.h > ry1;
+          });
+          if (hit.length) {
+            if (g.additive) {
+              hit.forEach(l => S.selSet.add(l.id));
+              if (!S.sel || !S.selSet.has(S.sel)) S.sel = hit[0].id;
+            } else {
+              S.selSet = new Set(hit.map(l => l.id));
+              S.sel = hit[0].id;
+            }
+            S.selKf = null;
+            if (S.nodeEdit && (!S.sel || S.selSet.size !== 1 || S.nodeEdit.id !== S.sel)) {
+              S.nodeEdit = null;
+            }
+            refreshPanels();
+          } else {
+            if (!g.additive && (S.sel || S.nodeEdit)) { selectOnly(null); S.nodeEdit = null; refreshPanels(); }
+          }
+          drawOverlay();
+        }
+        return;
+      }
       if (gesture.kind === 'draw') {
         if (gesture.l) { setTool('select'); refresh(); }
         else undoStack.pop();
@@ -4623,6 +4955,11 @@
       }
       if (['move', 'rotate', 'scale', 'origin'].includes(gesture.kind)) { refreshPanels(); renderTimeline(); }
       if (['nanchor', 'nhandle'].includes(gesture.kind)) refreshPanels();
+      gesture = null;
+    });
+    // Limpiar el gesto si el navegador cancela el puntero (p. ej. scroll táctil, pérdida de foco)
+    area.addEventListener('pointercancel', () => {
+      if (gesture && gesture.kind === 'marquee') drawOverlay(); // quitar el rectángulo
       gesture = null;
     });
     area.addEventListener('dblclick', e => {
@@ -4668,8 +5005,23 @@
         return;
       }
       if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) togglePlay(); spaceDown = true; return; }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (!e.shiftKey && S.penActive && S.penPts.length > 0) {
+          // Deshacer solo el último nodo de la pluma (sin tocar el historial global)
+          S.penPts.pop();
+          if (S.penPts.length === 0) S.penActive = false;
+          drawOverlay();
+          return;
+        }
+        e.shiftKey ? redo() : undo();
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && !e.shiftKey) { e.preventDefault(); copySelection(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') { e.preventDefault(); cutSelection(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteClipboard(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); selLayers().forEach(l => duplicateLayer(l.id)); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') { e.preventDefault(); e.shiftKey ? ungroupSelection() : groupSelection(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(!fileHandle); return; }
       switch (e.key) {
@@ -4806,13 +5158,17 @@
     window.addEventListener('paste', async e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
       const items = e.clipboardData && e.clipboardData.items;
-      if (!items) return;
-      for (const it of items) {
-        if (it.type && it.type.indexOf('image') !== -1) {
-          const f = it.getAsFile();
-          if (f) { e.preventDefault(); await importBitmap(f, 'Calco pegado'); break; }
+      // Intentar primero pegar imagen del portapapeles del sistema
+      if (items) {
+        for (const it of items) {
+          if (it.type && it.type.indexOf('image') !== -1) {
+            const f = it.getAsFile();
+            if (f) { e.preventDefault(); await importBitmap(f, 'Calco pegado'); return; }
+          }
         }
       }
+      // Si no hay imagen, pegar desde el portapapeles interno de capas
+      if (layerClipboard.length) { e.preventDefault(); pasteClipboard(); }
     });
     function importSVG(txt, fname) {
       const p = new DOMParser().parseFromString(txt, 'image/svg+xml');
@@ -5208,9 +5564,12 @@
       names.querySelectorAll('.layer-row').forEach(d => {
         d.onclick = () => {
           const id = d.dataset.lid;
-          if (S.sel === id) S.expanded[id] = !S.expanded[id];
-          else { S.sel = id; S.expanded[id] = true; }
-          refreshPanels(); drawOverlay();
+          if (S.sel === id) {
+            S.expanded[id] = !S.expanded[id];
+          } else {
+            selectLayer(id, false);
+            S.expanded[id] = true;
+          }
         };
       });
       names.querySelectorAll('[data-addkf]').forEach(b => {
