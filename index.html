@@ -912,11 +912,48 @@
       background: #23252c;
       font-weight: 600;
       cursor: pointer;
+      transition: background .12s;
+    }
+
+    .tname-row.layer-row:hover {
+      background: #2b2e37;
+    }
+
+    .tname-row.layer-row.selected {
+      background: rgba(124, 92, 255, .18);
+      box-shadow: inset 3px 0 0 var(--accent);
     }
 
     .tname-row.prop-row {
       padding-left: 24px;
       color: var(--txt2);
+      cursor: pointer;
+      transition: background .12s, color .12s;
+    }
+
+    .tname-row.prop-row:hover {
+      background: rgba(255, 255, 255, .03);
+      color: var(--txt);
+    }
+
+    .tname-row .tl-chevron {
+      width: 14px;
+      height: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 10px;
+      user-select: none;
+      color: var(--txt2);
+      flex-shrink: 0;
+      border-radius: 3px;
+      transition: color .12s, background .12s;
+    }
+
+    .tname-row .tl-chevron:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, .08);
     }
 
     .tname-row.selected {
@@ -1309,6 +1346,13 @@
             <path d="M7 4a5 5 0 1 0 4.8 6.5A5 5 0 0 1 8 9a5 5 0 0 1 2.2-4.1A5 5 0 0 0 7 4z" fill="#ff5470" />
           </svg>Restar
         </button>
+        <button data-obj="tosimpleshapes" title="Convertir a formas simples: deshace la propiedad compuesta separando fragmentos aislados en capas distintas (Ctrl+Shift+B)">
+          <svg width="18" height="18" viewBox="0 0 20 20" style="vertical-align:middle;margin-right:8px;flex-shrink:0">
+            <rect x="2" y="3" width="6" height="6" rx="1.5" fill="#9d85ff" />
+            <rect x="12" y="3" width="6" height="6" rx="1.5" fill="#00c2a8" />
+            <rect x="7" y="11" width="6" height="6" rx="1.5" fill="#ffb454" />
+          </svg>Convertir a formas simples
+        </button>
         <hr>
         <button data-obj="fliph">Voltear horizontal</button>
         <button data-obj="flipv">Voltear vertical</button>
@@ -1405,6 +1449,8 @@
       <span>
         <button class="mini" id="btnLayerAddImage"
           title="Importar imagen / calco de referencia (PNG, JPG, WEBP)">🖼</button>
+        <button class="mini" id="btnLayerSplitCompound"
+          title="Convertir a formas simples: separa bloques aislados en capas independientes (Ctrl+Shift+B)">☵</button>
         <button class="mini" id="btnLayerUp" title="Subir capa">▲</button>
         <button class="mini" id="btnLayerDown" title="Bajar capa">▼</button>
         <button class="mini" id="btnLayerDup" title="Duplicar capa">⧉</button>
@@ -1538,6 +1584,20 @@
     <input type="number" id="kfTime" step="0.01" min="0" style="width:62px" title="Tiempo (s)">
     <button class="mini danger" id="kfDelete" title="Eliminar keyframe">🗑</button>
     <div id="curveEd"><svg id="curveSvg" width="180" height="140"></svg></div>
+  </div>
+
+  <!-- Menú contextual para capas -->
+  <div id="layerContextMenu" class="menu" style="position:fixed;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.6);min-width:215px;">
+    <button data-lact="tosimpleshapes" title="Deshace la propiedad compuesta separando bloques en capas distintas">
+      <svg width="15" height="15" viewBox="0 0 20 20" style="vertical-align:middle;margin-right:8px;flex-shrink:0">
+        <rect x="2" y="3" width="6" height="6" rx="1.5" fill="#9d85ff" />
+        <rect x="12" y="3" width="6" height="6" rx="1.5" fill="#00c2a8" />
+        <rect x="7" y="11" width="6" height="6" rx="1.5" fill="#ffb454" />
+      </svg>Convertir a formas simples
+    </button>
+    <button data-lact="topath">✎ Convertir a trazado</button>
+    <button data-lact="dup">⧉ Duplicar capa</button>
+    <button data-lact="del" style="color:var(--danger)">🗑 Eliminar capa</button>
   </div>
 
   <script>
@@ -2212,6 +2272,8 @@
     }
     $('#btnLayerDel').onclick = deleteSelected;
     $('#btnLayerDup').onclick = () => S.sel && duplicateLayer(S.sel);
+    const btnSplitCompound = $('#btnLayerSplitCompound');
+    if (btnSplitCompound) btnSplitCompound.onclick = convertToSimpleShapes;
     $('#btnLayerUp').onclick = () => S.sel && moveLayer(S.sel, +1);
     $('#btnLayerDown').onclick = () => S.sel && moveLayer(S.sel, -1);
 
@@ -2661,6 +2723,271 @@
       }
     }
     function unionSelection() { booleanOpSelection('union'); }
+
+    /* --- Convertir a formas simples (deshace propiedad compuesta separando bloques aislados en capas manteniendo recortes) --- */
+    function ringBBox(ring) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of ring) {
+        if (p[0] < minX) minX = p[0];
+        if (p[0] > maxX) maxX = p[0];
+        if (p[1] < minY) minY = p[1];
+        if (p[1] > maxY) maxY = p[1];
+      }
+      return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
+    }
+
+    function ringArea(ring) {
+      let area = 0;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        area += (ring[j][0] * ring[i][1]) - (ring[i][0] * ring[j][1]);
+      }
+      return area / 2;
+    }
+
+    function pointInRing(p, ring) {
+      let inside = false;
+      const x = p[0], y = p[1];
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i][0], yi = ring[i][1];
+        const xj = ring[j][0], yj = ring[j][1];
+        const intersect = ((yi > y) !== (yj > y)) &&
+          (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function isRingInsideRing(inner, outer, bboxInner, bboxOuter) {
+      if (bboxInner.minX < bboxOuter.minX - 1e-3 || bboxInner.maxX > bboxOuter.maxX + 1e-3 ||
+          bboxInner.minY < bboxOuter.minY - 1e-3 || bboxInner.maxY > bboxOuter.maxY + 1e-3) {
+        return false;
+      }
+      const testIndices = [
+        0,
+        Math.floor(inner.length * 0.25),
+        Math.floor(inner.length * 0.5),
+        Math.floor(inner.length * 0.75)
+      ];
+      let insideCount = 0;
+      for (const idx of testIndices) {
+        if (pointInRing(inner[idx], outer)) insideCount++;
+      }
+      const cx = (bboxInner.minX + bboxInner.maxX) / 2;
+      const cy = (bboxInner.minY + bboxInner.maxY) / 2;
+      if (pointInRing([cx, cy], outer)) insideCount++;
+      return insideCount >= 2;
+    }
+
+    function extractLayerCmds(l) {
+      if (!l) return null;
+      if (l.type === 'raw' && l.raw) {
+        try {
+          const docXml = new DOMParser().parseFromString(l.raw, 'image/svg+xml');
+          const pathEl = docXml.querySelector('path');
+          if (pathEl && pathEl.getAttribute('d')) return parseD(pathEl.getAttribute('d'));
+          const polyEl = docXml.querySelector('polygon, polyline');
+          if (polyEl && polyEl.getAttribute('points')) {
+            const nums = (polyEl.getAttribute('points').match(/-?\d*\.?\d+(?:e-?\d+)?/gi) || []).map(Number);
+            if (nums.length >= 4) {
+              const cmds = [['M', nums[0], nums[1]]];
+              for (let i = 2; i < nums.length; i += 2) cmds.push(['L', nums[i], nums[i + 1]]);
+              cmds.push(['Z']);
+              return cmds;
+            }
+          }
+        } catch (e) { }
+      }
+      return shapeToD(l);
+    }
+
+    function decomposeCompoundCmds(cmds) {
+      if (!cmds || !cmds.length) return null;
+      const subpaths = [];
+      let cur = [];
+      for (const c of cmds) {
+        if (c[0] === 'M' && cur.length > 0) {
+          subpaths.push(cur);
+          cur = [c];
+        } else {
+          cur.push(c);
+        }
+      }
+      if (cur.length > 0) subpaths.push(cur);
+      if (subpaths.length <= 1) return null;
+
+      const subInfo = subpaths.map((sp, idx) => {
+        const rings = cmdsToRings(sp);
+        const ring = rings[0] || [];
+        const bbox = ringBBox(ring);
+        const area = Math.abs(ringArea(ring));
+        return { idx, sp, ring, bbox, area };
+      });
+
+      const containers = subInfo.map(() => []);
+      for (let i = 0; i < subInfo.length; i++) {
+        for (let j = 0; j < subInfo.length; j++) {
+          if (i === j) continue;
+          if (subInfo[j].area <= subInfo[i].area) continue;
+          if (isRingInsideRing(subInfo[i].ring, subInfo[j].ring, subInfo[i].bbox, subInfo[j].bbox)) {
+            containers[i].push(j);
+          }
+        }
+      }
+
+      const depths = containers.map(c => c.length);
+      const islands = [];
+      const holeMap = {};
+
+      subInfo.forEach((info, i) => {
+        if (depths[i] % 2 === 0) {
+          islands.push({ id: i, sp: info.sp, depth: depths[i] });
+          holeMap[i] = [];
+        }
+      });
+
+      subInfo.forEach((info, i) => {
+        if (depths[i] % 2 === 1) {
+          let bestIsland = -1;
+          let maxDepth = -1;
+          for (const parentIdx of containers[i]) {
+            if (depths[parentIdx] % 2 === 0 && depths[parentIdx] > maxDepth) {
+              maxDepth = depths[parentIdx];
+              bestIsland = parentIdx;
+            }
+          }
+          if (bestIsland !== -1 && holeMap[bestIsland]) {
+            holeMap[bestIsland].push(info.sp);
+          } else if (islands.length > 0) {
+            holeMap[islands[0].id].push(info.sp);
+          }
+        }
+      });
+
+      if (islands.length <= 1) return null;
+
+      return islands.map(isl => {
+        const combinedCmds = [...isl.sp];
+        for (const holeSp of (holeMap[isl.id] || [])) {
+          combinedCmds.push(...holeSp);
+        }
+        return {
+          cmds: combinedCmds,
+          d: dToStr(combinedCmds),
+          hasHoles: (holeMap[isl.id] || []).length > 0
+        };
+      });
+    }
+
+    function convertToSimpleShapes() {
+      const selIds = [...S.selSet];
+      let targetLayers = selIds.map(id => getLayer(id)).filter(Boolean);
+      if (!targetLayers.length && S.sel) {
+        const single = getLayer(S.sel);
+        if (single) targetLayers.push(single);
+      }
+      if (!targetLayers.length) {
+        showHint('Selecciona una forma o polígono compuesto para convertir a formas simples');
+        return;
+      }
+
+      let totalConverted = 0;
+      let totalCreated = 0;
+      const allCreatedIds = [];
+
+      snapshot();
+
+      for (const l of targetLayers) {
+        if (l.locked) continue;
+        const cmds = extractLayerCmds(l);
+        if (!cmds || !cmds.length) continue;
+
+        const m = layerMatrix(l, S.T);
+        const effectiveCmds = cmds.map(c => {
+          if (c[0] === 'Z') return ['Z'];
+          const o = [c[0]];
+          for (let i = 1; i < c.length; i += 2) {
+            const p = m.transformPoint(new DOMPoint(c[i], c[i + 1]));
+            o.push(p.x, p.y);
+          }
+          return o;
+        });
+
+        // Intentar primero descomposición exacta por subpaths (conserva Béziers y coordenadas exactas)
+        let frags = decomposeCompoundCmds(effectiveCmds);
+
+        // Si no se descompuso por subpaths, recurrir al motor polygonClipping (XOR / Martinez-Rueda)
+        if (!frags) {
+          try {
+            const rings = cmdsToRings(effectiveCmds);
+            if (rings.length > 1) {
+              const mp = rings.slice(1).reduce((acc, r) => polygonClipping.xor(acc, [[r]]), [[rings[0]]]);
+              if (mp && mp.length > 1) {
+                frags = mp.map(poly => ({
+                  d: multiPolyToD([poly]),
+                  hasHoles: poly.length > 1
+                })).filter(f => f.d && f.d.trim().length > 0);
+              }
+            }
+          } catch (e) { }
+        }
+
+        if (!frags || frags.length <= 1) continue;
+
+        // Reemplazar la capa compuesta por las capas simples independientes
+        const idx = doc.layers.findIndex(item => item.id === l.id);
+        if (idx === -1) continue;
+
+        doc.layers.splice(idx, 1);
+        const originalAnim = anims[l.id] ? JSON.parse(JSON.stringify(anims[l.id])) : null;
+        delete anims[l.id];
+
+        const baseName = l.name ? l.name.replace(/\s+\d+$/, '') : 'Forma';
+        const newLayers = frags.map((frag, i) => {
+          const newId = uid();
+          const newLayer = {
+            id: newId,
+            name: `${baseName} ${i + 1}`,
+            type: 'path',
+            attrs: {
+              d: frag.d,
+              fill: l.attrs && l.attrs.fill !== undefined ? l.attrs.fill : '#7c5cff',
+              stroke: l.attrs && l.attrs.stroke !== undefined ? l.attrs.stroke : '',
+              sw: l.attrs && l.attrs.sw !== undefined ? l.attrs.sw : 1,
+              fillRule: 'evenodd'
+            },
+            base: { ...DEF_BASE, opacity: l.base && l.base.opacity !== undefined ? l.base.opacity : 1 },
+            visible: l.visible !== undefined ? l.visible : true,
+            locked: false,
+            scene: l.scene !== undefined ? l.scene : null
+          };
+
+          // Si la capa original tenía animaciones de estilo (opacidad, color), propagarlas
+          if (originalAnim) {
+            const animCopy = JSON.parse(JSON.stringify(originalAnim));
+            delete animCopy.geom;
+            if (Object.keys(animCopy).length > 0) anims[newId] = animCopy;
+          }
+
+          return newLayer;
+        });
+
+        doc.layers.splice(idx, 0, ...newLayers);
+        newLayers.forEach(nl => allCreatedIds.push(nl.id));
+        totalConverted++;
+        totalCreated += newLayers.length;
+      }
+
+      if (totalConverted === 0) {
+        undoStack.pop();
+        showHint('La forma seleccionada ya es simple (no tiene fragmentos aislados)');
+        return;
+      }
+
+      S.selSet = new Set(allCreatedIds);
+      S.sel = allCreatedIds[0] || null;
+      refresh();
+      showHint(`Convertido a ${totalCreated} formas simples independientes`);
+    }
     /* --- suavizar trazado de pluma (Catmull-Rom → Bézier) --- */
     function smoothSelection() {
       const l = selLayer();
@@ -4337,6 +4664,7 @@
         fragment: () => booleanOpSelection('fragment'),
         intersect: () => booleanOpSelection('intersect'),
         subtract: () => booleanOpSelection('subtract'),
+        tosimpleshapes: convertToSimpleShapes,
         fliph: () => flipSel('h'), flipv: () => flipSel('v'),
         rotl: () => rotateSel(-90), rotr: () => rotateSel(90),
         centerorigin: centerOrigin, topath: convertToPath, smooth: smoothSelection
@@ -4392,7 +4720,32 @@
           const done = () => { l.name = inp.value || l.name; refreshPanels(); };
           inp.onblur = done; inp.onkeydown = ev => { if (ev.key === 'Enter') inp.blur(); ev.stopPropagation(); };
         };
+        d.oncontextmenu = e => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectOnly(l.id);
+          const cm = $('#layerContextMenu');
+          if (cm) {
+            closeTopMenus();
+            cm.style.left = Math.min(e.clientX, window.innerWidth - 225) + 'px';
+            cm.style.top = Math.min(e.clientY, window.innerHeight - 160) + 'px';
+            cm.classList.add('open');
+          }
+        };
         el.appendChild(d);
+      });
+    }
+    const layerCm = $('#layerContextMenu');
+    if (layerCm) {
+      layerCm.addEventListener('click', e => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const act = btn.dataset.lact;
+        layerCm.classList.remove('open');
+        if (act === 'tosimpleshapes') convertToSimpleShapes();
+        else if (act === 'topath') convertToPath();
+        else if (act === 'dup') { const l = selLayer(); if (l) duplicateLayer(l.id); }
+        else if (act === 'del') deleteSelected();
       });
     }
     function selectOnly(id) {
@@ -4631,7 +4984,8 @@
           }
           h += `<div class="prow"><label>Ruta d</label><input type="text" data-tattr="d" value="${esc(a.d)}"></div>`
             + `<div class="prow"><label></label><button class="mini${S.tool === 'node' ? ' active' : ''}" data-a="nodes">✒ Editar nodos (A)</button>
-          <button class="mini" data-a="smooth">〰 Suavizar</button></div>`; break;
+          <button class="mini" data-a="smooth">〰 Suavizar</button>
+          <button class="mini" data-a="tosimpleshapes" title="Convertir a formas simples: separa bloques en capas distintas">☵ Formas simples</button></div>`; break;
         case 'image':
           h += attrRow('X', 'x', a.x) + attrRow('Y', 'y', a.y) + attrRow('Ancho', 'w', a.w) + attrRow('Alto', 'h', a.h)
             + `<div class="prow"><label>Modo calco</label><input type="checkbox" id="chkTracingRef"${l.isReference ? ' checked' : ''} title="Referencia para calcar a mano"></div>`
@@ -4756,7 +5110,7 @@
         nofill: () => { snapshot(); l.attrs.fill = 'none'; render(); renderProps(); },
         nostroke: () => { snapshot(); l.attrs.stroke = ''; render(); renderProps(); },
         fliph: () => flipSel('h'), flipv: () => flipSel('v'), rotl: () => rotateSel(-90), rotr: () => rotateSel(90),
-        centerorg: centerOrigin, smooth: smoothSelection,
+        centerorg: centerOrigin, smooth: smoothSelection, tosimpleshapes: convertToSimpleShapes,
         nodes: () => {
           setTool('node');
           const l = selLayer();
@@ -4874,6 +5228,7 @@
         if (!keysOf(l.id, prop)) setBase(l, prop, cur);
       } else {
         setKeyAt(l, prop, S.T, valAt(l, prop, S.T));
+        S.expanded[l.id] = true;
       }
       refreshPanels(); applyFrame(S.T);
     }
@@ -5351,6 +5706,7 @@
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteClipboard(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); selLayers().forEach(l => duplicateLayer(l.id)); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') { e.preventDefault(); e.shiftKey ? ungroupSelection() : groupSelection(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'b') { e.preventDefault(); convertToSimpleShapes(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(!fileHandle); return; }
       switch (e.key) {
         case 'v': case 'V': setTool('select'); break;
@@ -5857,9 +6213,9 @@
         const hasAnim = Object.keys(la).length > 0;
         const exp = S.expanded[l.id];
         nh += `<div class="tname-row layer-row${l.id === S.sel ? ' selected' : ''}" data-lid="${l.id}">
-      <span style="width:12px;display:inline-block">${hasAnim ? (exp ? '▾' : '▸') : ''}</span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis">${esc(l.name)}</span>
-      ${hasAnim ? '<span title="Animada" style="color:var(--kf)">◆</span>' : ''}</div>`;
+      <span class="tl-chevron" title="${exp ? 'Colapsar propiedades' : 'Expandir propiedades'}">${exp ? '▾' : '▸'}</span>
+      <span class="tl-lname" style="flex:1;overflow:hidden;text-overflow:ellipsis">${esc(l.name)}</span>
+      ${hasAnim ? '<span title="Capa animada" style="color:var(--kf);font-size:11px;margin-right:2px">◆</span>' : ''}</div>`;
         // fila de capa: agregado de keyframes
         let agg = '';
         if (hasAnim && !exp) {
@@ -5873,7 +6229,7 @@
         if (exp) {
           for (const [prop, label] of ANIM_PROPS) {
             const ks = la[prop];
-            nh += `<div class="tname-row prop-row"><span style="flex:1">${label}</span>
+            nh += `<div class="tname-row prop-row" data-lid="${l.id}"><span style="flex:1">${label}</span>
           <button class="mini" data-addkf="${l.id}:${prop}" title="Keyframe en t actual">◆+</button></div>`;
             let kh = '';
             if (ks && ks.length) {
@@ -5888,16 +6244,42 @@
       tracks.innerHTML = th + '<div id="playhead"></div>';
       tracks.style.width = w + 'px';
       positionPlayhead();
+      names.scrollTop = $('#tTracksWrap').scrollTop;
 
       names.querySelectorAll('.layer-row').forEach(d => {
-        d.onclick = () => {
+        d.onclick = e => {
           const id = d.dataset.lid;
+          if (!id) return;
+          const isChevron = e.target.closest('.tl-chevron');
+          if (isChevron) {
+            S.expanded[id] = !S.expanded[id];
+            if (S.sel !== id) selectLayer(id, false);
+            else renderTimeline();
+            return;
+          }
           if (S.sel === id) {
             S.expanded[id] = !S.expanded[id];
+            renderTimeline();
           } else {
-            selectLayer(id, false);
             S.expanded[id] = true;
+            selectLayer(id, false);
           }
+        };
+        d.ondblclick = e => {
+          if (e.target.closest('button, .tl-chevron')) return;
+          const id = d.dataset.lid;
+          if (!id) return;
+          if (!S.expanded[id]) {
+            S.expanded[id] = true;
+            renderTimeline();
+          }
+        };
+      });
+      names.querySelectorAll('.prop-row').forEach(pr => {
+        pr.onclick = e => {
+          if (e.target.closest('button')) return;
+          const lid = pr.dataset.lid;
+          if (lid && S.sel !== lid) selectLayer(lid, false);
         };
       });
       names.querySelectorAll('[data-addkf]').forEach(b => {
@@ -5945,6 +6327,10 @@
       scrubbing = true; $('#tRulerWrap').setPointerCapture(e.pointerId);
       scrubFromEvent(e, $('#tRulerWrap'));
     });
+    $('#tNames').addEventListener('wheel', e => {
+      e.preventDefault();
+      $('#tTracksWrap').scrollTop += e.deltaY;
+    }, { passive: false });
     $('#tRulerWrap').addEventListener('wheel', e => {
       e.preventDefault();
       $('#tTracksWrap').scrollLeft += e.deltaY;
