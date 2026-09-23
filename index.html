@@ -286,6 +286,19 @@
       cursor: pointer;
     }
 
+    .layer-item button.mini {
+      min-width: 22px;
+      min-height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 4px;
+    }
+
+    .layer-item button svg {
+      pointer-events: none;
+    }
+
     .mini:hover {
       opacity: 1;
       border-color: var(--border);
@@ -571,7 +584,8 @@
     #zoomHud {
       position: absolute;
       bottom: 10px;
-      left: 10px;
+      right: 14px;
+      left: auto;
       z-index: 5;
       display: flex;
       gap: 5px;
@@ -988,14 +1002,19 @@
       z-index: 1;
     }
 
-    #playhead {
+    #playhead,
+    #rulerPlayhead {
       position: absolute;
       top: 0;
       bottom: 0;
       width: 1px;
       background: var(--accent2);
-      z-index: 10;
-      pointer-events: none;
+      z-index: 15;
+    }
+
+    #rulerPlayhead {
+      cursor: grab;
+      pointer-events: auto;
     }
 
     #playhead::before {
@@ -1005,15 +1024,100 @@
       left: -5px;
       border: 5px solid transparent;
       border-top: 7px solid var(--accent2);
+      pointer-events: none;
     }
 
-    #rulerPlayhead {
+    #rulerPlayhead::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -6px;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 9px solid var(--accent2);
+      cursor: grab;
+      pointer-events: auto;
+    }
+
+    #playhead::after,
+    #rulerPlayhead::after {
+      content: '';
       position: absolute;
       top: 0;
       bottom: 0;
-      width: 1px;
-      background: var(--accent2);
-      z-index: 10;
+      left: -7px;
+      width: 15px;
+      cursor: grab;
+      pointer-events: auto;
+      z-index: 16;
+    }
+
+    #playhead:active,
+    #rulerPlayhead:active,
+    #playhead:active::after,
+    #rulerPlayhead:active::after {
+      cursor: grabbing;
+    }
+
+    #tlRightControls {
+      position: absolute;
+      right: 8px;
+      top: 3px;
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      z-index: 25;
+      background: rgba(31, 33, 40, .92);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 6px;
+      backdrop-filter: blur(4px);
+    }
+
+    .dur-marker {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 0;
+      z-index: 12;
+      user-select: none;
+    }
+
+    .dur-handle {
+      position: absolute;
+      top: 2px;
+      left: -20px;
+      width: 40px;
+      height: 18px;
+      background: var(--danger);
+      color: #fff;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      cursor: col-resize;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+      transition: filter 0.15s, transform 0.1s;
+      z-index: 14;
+      pointer-events: auto;
+    }
+
+    .dur-handle:hover {
+      filter: brightness(1.2);
+      transform: scale(1.06);
+    }
+
+    .dur-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -1px;
+      width: 2px;
+      background: var(--danger);
+      opacity: 0.75;
       pointer-events: none;
     }
 
@@ -1535,24 +1639,28 @@
   <div id="timeline">
     <div id="tlResize" title="Arrastra para cambiar la altura de la línea de tiempo"></div>
     <div id="tControls">
-      <button class="mini" id="btnToStart" title="Ir al inicio">⏮</button>
+      <button class="mini" id="btnToStart" title="Ir al inicio (Inicio)">⏮</button>
       <button id="btnPlay" class="toolbtn" title="Reproducir/Pausa (Espacio)">▶</button>
       <span id="timeLabel">0.00s</span>
       <label>Dur.</label>
       <input type="number" id="docDur" min="0.1" step="0.1" style="width:52px" title="Duración (s)">
       <button class="mini" id="btnLoop" title="Repetir">🔁</button>
-      <select id="speedSel" title="Velocidad de reproducción (no afecta a la exportación)" style="width:48px">
-        <option value="0.25">¼×</option>
-        <option value="0.5">½×</option>
-        <option value="1" selected>1×</option>
-        <option value="2">2×</option>
-      </select>
-      <button class="mini" id="tlZoomOut" title="Alejar línea de tiempo">⊖</button>
-      <button class="mini" id="tlZoomIn" title="Acercar línea de tiempo">⊕</button>
     </div>
     <div id="tRulerWrap">
       <div id="tRuler"></div>
       <div id="rulerPlayhead"></div>
+      <div id="tlRightControls">
+        <select id="speedSel" title="Velocidad de reproducción (no afecta a la exportación)" style="width:48px">
+          <option value="0.25">¼×</option>
+          <option value="0.5">½×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+        </select>
+        <button class="mini" id="tlZoomOut" title="Alejar línea de tiempo">−</button>
+        <span id="tlZoomPct" style="min-width:38px;text-align:center;font-size:11px;color:var(--txt2);user-select:none;">100%</span>
+        <button class="mini" id="tlZoomIn" title="Acercar línea de tiempo">+</button>
+        <button class="mini" id="tlZoomFit" title="Ajustar timeline a la ventana">⛶</button>
+      </div>
     </div>
     <div id="tNames"></div>
     <div id="tTracksWrap">
@@ -2364,22 +2472,212 @@
       }
       return null;
     }
+    function arcToCubics(x1, y1, rx, ry, phi, largeArc, sweep, x2, y2) {
+      if (rx === 0 || ry === 0) return [['L', x2, y2]];
+      rx = Math.abs(rx); ry = Math.abs(ry);
+      const phiRad = (phi % 360) * Math.PI / 180;
+      const cosPhi = Math.cos(phiRad), sinPhi = Math.sin(phiRad);
+      const dx = (x1 - x2) / 2, dy = (y1 - y2) / 2;
+      const x1p = cosPhi * dx + sinPhi * dy, y1p = -sinPhi * dx + cosPhi * dy;
+      let prx = rx * rx, pry = ry * ry, px1p = x1p * x1p, py1p = y1p * y1p;
+      const check = px1p / prx + py1p / pry;
+      if (check > 1) {
+        const scale = Math.sqrt(check);
+        rx *= scale; ry *= scale;
+        prx = rx * rx; pry = ry * ry;
+      }
+      const sign = (largeArc === sweep) ? -1 : 1;
+      const sq = Math.max(0, (prx * pry - prx * py1p - pry * px1p) / (prx * py1p + pry * px1p));
+      const coef = sign * Math.sqrt(sq);
+      const cxp = coef * (rx * y1p / ry), cyp = coef * -(ry * x1p / rx);
+      const cx = cosPhi * cxp - sinPhi * cyp + (x1 + x2) / 2;
+      const cy = sinPhi * cxp + cosPhi * cyp + (y1 + y2) / 2;
+      function vecAngle(ux, uy, vx, vy) {
+        const dot = ux * vx + uy * vy;
+        const l = Math.hypot(ux, uy) * Math.hypot(vx, vy);
+        const ang = Math.acos(Math.max(-1, Math.min(1, dot / (l || 1))));
+        return (ux * vy - uy * vx < 0) ? -ang : ang;
+      }
+      const theta1 = vecAngle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry);
+      let dTheta = vecAngle((x1p - cxp) / rx, (y1p - cyp) / ry, (-x1p - cxp) / rx, (-y1p - cyp) / ry) % (2 * Math.PI);
+      if (!sweep && dTheta > 0) dTheta -= 2 * Math.PI;
+      else if (sweep && dTheta < 0) dTheta += 2 * Math.PI;
+      const nSegs = Math.max(1, Math.ceil(Math.abs(dTheta) / (Math.PI / 2)));
+      const segs = [];
+      const dt = dTheta / nSegs;
+      let t = theta1;
+      for (let s = 0; s < nSegs; s++) {
+        const t2 = t + dt;
+        const alpha = Math.sin(dt) * (Math.sqrt(4 + 3 * Math.pow(Math.tan(dt / 2), 2)) - 1) / 3;
+        const cosT = Math.cos(t), sinT = Math.sin(t);
+        const cosT2 = Math.cos(t2), sinT2 = Math.sin(t2);
+        const ep1x = cosPhi * rx * cosT - sinPhi * ry * sinT + cx;
+        const ep1y = sinPhi * rx * cosT + cosPhi * ry * sinT + cy;
+        const cp1x = ep1x + alpha * (-cosPhi * rx * sinT - sinPhi * ry * cosT);
+        const cp1y = ep1y + alpha * (-sinPhi * rx * sinT + cosPhi * ry * cosT);
+        const ep2x = cosPhi * rx * cosT2 - sinPhi * ry * sinT2 + cx;
+        const ep2y = sinPhi * rx * cosT2 + cosPhi * ry * sinT2 + cy;
+        const cp2x = ep2x - alpha * (-cosPhi * rx * sinT2 - sinPhi * ry * cosT2);
+        const cp2y = ep2y - alpha * (-sinPhi * rx * sinT2 + cosPhi * ry * cosT2);
+        segs.push(['C', +cp1x.toFixed(3), +cp1y.toFixed(3), +cp2x.toFixed(3), +cp2y.toFixed(3), +ep2x.toFixed(3), +ep2y.toFixed(3)]);
+        t = t2;
+      }
+      return segs;
+    }
+
     function parseD(d) {
-      const out = []; let cur = [0, 0];
-      const re = /([MLHVCQZ])([^MLHVCQZ]*)/gi;
+      if (!d) return [];
+      const tokens = [];
+      const re = /([a-df-z])|([-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?)/gi;
       let m;
       while ((m = re.exec(d))) {
-        const cmd = m[1].toUpperCase();
-        if (m[1] !== cmd) throw new Error('rel');
-        const nums = (m[2].match(/-?\d*\.?\d+(?:e-?\d+)?/gi) || []).map(Number);
-        if (cmd === 'Z') { out.push(['Z']); continue; }
-        if (cmd === 'H') { for (const n of nums) { out.push(['L', n, cur[1]]); cur = [n, cur[1]]; } continue; }
-        if (cmd === 'V') { for (const n of nums) { out.push(['L', cur[0], n]); cur = [cur[0], n]; } continue; }
-        const size = { M: 2, L: 2, C: 6, Q: 4 }[cmd];
-        if (!size) throw new Error('cmd');
-        for (let i = 0; i + size <= nums.length; i += size) {
-          out.push([cmd, ...nums.slice(i, i + size)]);
-          cur = [nums[i + size - 2], nums[i + size - 1]];
+        if (m[1]) tokens.push(m[1]);
+        else if (m[2]) tokens.push(parseFloat(m[2]));
+      }
+      const out = [];
+      let curX = 0, curY = 0;
+      let startX = 0, startY = 0;
+      let lastC2X = 0, lastC2Y = 0;
+      let lastQ1X = 0, lastQ1Y = 0;
+      let lastCmd = '';
+      let i = 0;
+      while (i < tokens.length) {
+        let tok = tokens[i];
+        if (typeof tok !== 'string') {
+          if (lastCmd === 'M') tok = 'L';
+          else if (lastCmd === 'm') tok = 'l';
+          else tok = lastCmd;
+        } else {
+          i++;
+        }
+        const isRel = (tok === tok.toLowerCase() && tok !== 'z');
+        const u = tok.toUpperCase();
+        switch (u) {
+          case 'M': {
+            let x = tokens[i++], y = tokens[i++];
+            if (isRel) { x += curX; y += curY; }
+            out.push(['M', x, y]);
+            curX = x; curY = y;
+            startX = x; startY = y;
+            lastCmd = isRel ? 'm' : 'M';
+            while (i < tokens.length && typeof tokens[i] === 'number') {
+              let lx = tokens[i++], ly = tokens[i++];
+              if (isRel) { lx += curX; ly += curY; }
+              out.push(['L', lx, ly]);
+              curX = lx; curY = ly;
+            }
+            break;
+          }
+          case 'L': {
+            let x = tokens[i++], y = tokens[i++];
+            if (isRel) { x += curX; y += curY; }
+            out.push(['L', x, y]);
+            curX = x; curY = y;
+            lastCmd = isRel ? 'l' : 'L';
+            break;
+          }
+          case 'H': {
+            let x = tokens[i++];
+            if (isRel) x += curX;
+            out.push(['L', x, curY]);
+            curX = x;
+            lastCmd = isRel ? 'h' : 'H';
+            break;
+          }
+          case 'V': {
+            let y = tokens[i++];
+            if (isRel) y += curY;
+            out.push(['L', curX, y]);
+            curY = y;
+            lastCmd = isRel ? 'v' : 'V';
+            break;
+          }
+          case 'C': {
+            let x1 = tokens[i++], y1 = tokens[i++];
+            let x2 = tokens[i++], y2 = tokens[i++];
+            let x = tokens[i++], y = tokens[i++];
+            if (isRel) {
+              x1 += curX; y1 += curY;
+              x2 += curX; y2 += curY;
+              x += curX; y += curY;
+            }
+            out.push(['C', x1, y1, x2, y2, x, y]);
+            lastC2X = x2; lastC2Y = y2;
+            curX = x; curY = y;
+            lastCmd = isRel ? 'c' : 'C';
+            break;
+          }
+          case 'S': {
+            let x2 = tokens[i++], y2 = tokens[i++];
+            let x = tokens[i++], y = tokens[i++];
+            if (isRel) {
+              x2 += curX; y2 += curY;
+              x += curX; y += curY;
+            }
+            let x1 = curX, y1 = curY;
+            if (/^[cs]$/i.test(lastCmd)) {
+              x1 = 2 * curX - lastC2X;
+              y1 = 2 * curY - lastC2Y;
+            }
+            out.push(['C', x1, y1, x2, y2, x, y]);
+            lastC2X = x2; lastC2Y = y2;
+            curX = x; curY = y;
+            lastCmd = isRel ? 's' : 'S';
+            break;
+          }
+          case 'Q': {
+            let x1 = tokens[i++], y1 = tokens[i++];
+            let x = tokens[i++], y = tokens[i++];
+            if (isRel) {
+              x1 += curX; y1 += curY;
+              x += curX; y += curY;
+            }
+            out.push(['Q', x1, y1, x, y]);
+            lastQ1X = x1; lastQ1Y = y1;
+            curX = x; curY = y;
+            lastCmd = isRel ? 'q' : 'Q';
+            break;
+          }
+          case 'T': {
+            let x = tokens[i++], y = tokens[i++];
+            if (isRel) { x += curX; y += curY; }
+            let x1 = curX, y1 = curY;
+            if (/^[qt]$/i.test(lastCmd)) {
+              x1 = 2 * curX - lastQ1X;
+              y1 = 2 * curY - lastQ1Y;
+            }
+            out.push(['Q', x1, y1, x, y]);
+            lastQ1X = x1; lastQ1Y = y1;
+            curX = x; curY = y;
+            lastCmd = isRel ? 't' : 'T';
+            break;
+          }
+          case 'A': {
+            let rx = tokens[i++], ry = tokens[i++];
+            let rot = tokens[i++];
+            let largeArc = tokens[i++];
+            let sweep = tokens[i++];
+            let x = tokens[i++], y = tokens[i++];
+            if (isRel) { x += curX; y += curY; }
+            const cubics = arcToCubics(curX, curY, rx, ry, rot, largeArc, sweep, x, y);
+            for (const seg of cubics) {
+              out.push(seg);
+              if (seg[0] === 'C') {
+                lastC2X = seg[3]; lastC2Y = seg[4];
+              }
+            }
+            curX = x; curY = y;
+            lastCmd = isRel ? 'a' : 'A';
+            break;
+          }
+          case 'Z': {
+            out.push(['Z']);
+            curX = startX; curY = startY;
+            lastCmd = 'Z';
+            break;
+          }
+          default:
+            break;
         }
       }
       return out;
@@ -2778,22 +3076,177 @@
       return insideCount >= 2;
     }
 
+    function extractShapesFromSvg(rawXml) {
+      if (!rawXml) return [];
+      let docXml;
+      try {
+        docXml = new DOMParser().parseFromString(
+          `<svg xmlns="http://www.w3.org/2000/svg">${rawXml}</svg>`,
+          'image/svg+xml'
+        );
+      } catch (e) {
+        return [];
+      }
+      const root = docXml.documentElement;
+      if (!root) return [];
+      const shapes = [];
+
+      function walk(node, parentMatrix, parentStyle) {
+        if (!node || node.nodeType !== 1) return;
+        const tag = node.nodeName.toLowerCase();
+        if (['defs', 'clippath', 'mask', 'pattern', 'metadata', 'script', 'title', 'desc'].includes(tag)) return;
+
+        let curMatrix = parentMatrix;
+        const tf = node.getAttribute('transform');
+        if (tf) {
+          try {
+            const m = new DOMMatrix(tf);
+            curMatrix = parentMatrix.multiply(m);
+          } catch (err) { }
+        }
+
+        const styleAttr = node.getAttribute('style') || '';
+        const styleObj = {};
+        if (styleAttr) {
+          styleAttr.split(';').forEach(pair => {
+            const idx = pair.indexOf(':');
+            if (idx > -1) {
+              const k = pair.slice(0, idx).trim().toLowerCase();
+              const v = pair.slice(idx + 1).trim();
+              if (k && v) styleObj[k] = v;
+            }
+          });
+        }
+
+        const fillAttr = node.getAttribute('fill') || styleObj['fill'] || parentStyle.fill;
+        const strokeAttr = node.getAttribute('stroke') || styleObj['stroke'] || parentStyle.stroke;
+        const swAttr = node.getAttribute('stroke-width') || styleObj['stroke-width'] || parentStyle.sw;
+        const fillRuleAttr = node.getAttribute('fill-rule') || styleObj['fill-rule'] || parentStyle.fillRule;
+        const opacityAttr = node.getAttribute('opacity') || styleObj['opacity'] || parentStyle.opacity;
+
+        const curStyle = {
+          fill: fillAttr !== undefined ? fillAttr : '#000000',
+          stroke: strokeAttr !== undefined ? strokeAttr : '',
+          sw: parseFloat(swAttr) || 1,
+          fillRule: fillRuleAttr || 'nonzero',
+          opacity: parseFloat(opacityAttr) || 1
+        };
+
+        let cmds = null;
+        let shapeName = '';
+
+        if (tag === 'path') {
+          const d = node.getAttribute('d');
+          if (d) {
+            try {
+              cmds = parseD(d);
+              shapeName = node.getAttribute('id') || 'Trazado';
+            } catch (e) { }
+          }
+        } else if (tag === 'rect') {
+          const x = parseFloat(node.getAttribute('x')) || 0;
+          const y = parseFloat(node.getAttribute('y')) || 0;
+          const w = parseFloat(node.getAttribute('width')) || 0;
+          const h = parseFloat(node.getAttribute('height')) || 0;
+          const rx = parseFloat(node.getAttribute('rx')) || 0;
+          if (w > 0 && h > 0) {
+            if (rx > 0) {
+              const r = Math.min(rx, w / 2, h / 2), K = 0.5522847498, kr = K * r;
+              cmds = [
+                ['M', x + r, y],
+                ['L', x + w - r, y],
+                ['C', x + w - r + kr, y, x + w, y + r - kr, x + w, y + r],
+                ['L', x + w, y + h - r],
+                ['C', x + w, y + h - r + kr, x + w - r + kr, y + h, x + w - r, y + h],
+                ['L', x + r, y + h],
+                ['C', x + r - kr, y + h, x, y + h - r + kr, x, y + h - r],
+                ['L', x, y + r],
+                ['C', x, y + r - kr, x + r - kr, y, x + r, y],
+                ['Z']
+              ];
+            } else {
+              cmds = [['M', x, y], ['L', x + w, y], ['L', x + w, y + h], ['L', x, y + h], ['Z']];
+            }
+            shapeName = node.getAttribute('id') || 'Rectángulo';
+          }
+        } else if (tag === 'circle' || tag === 'ellipse') {
+          const cx = parseFloat(node.getAttribute('cx')) || 0;
+          const cy = parseFloat(node.getAttribute('cy')) || 0;
+          const rx = tag === 'circle' ? (parseFloat(node.getAttribute('r')) || 0) : (parseFloat(node.getAttribute('rx')) || 0);
+          const ry = tag === 'circle' ? rx : (parseFloat(node.getAttribute('ry')) || 0);
+          if (rx > 0 && ry > 0) {
+            const K = 0.5522847498, kx = K * rx, ky = K * ry;
+            cmds = [
+              ['M', cx + rx, cy],
+              ['C', cx + rx, cy + ky, cx + kx, cy + ry, cx, cy + ry],
+              ['C', cx - kx, cy + ry, cx - rx, cy + ky, cx - rx, cy],
+              ['C', cx - rx, cy - ky, cx - kx, cy - ry, cx, cy - ry],
+              ['C', cx + kx, cy - ry, cx + rx, cy - ky, cx + rx, cy],
+              ['Z']
+            ];
+            shapeName = node.getAttribute('id') || (tag === 'circle' ? 'Círculo' : 'Elipse');
+          }
+        } else if (tag === 'line') {
+          const x1 = parseFloat(node.getAttribute('x1')) || 0;
+          const y1 = parseFloat(node.getAttribute('y1')) || 0;
+          const x2 = parseFloat(node.getAttribute('x2')) || 0;
+          const y2 = parseFloat(node.getAttribute('y2')) || 0;
+          cmds = [['M', x1, y1], ['L', x2, y2]];
+          shapeName = node.getAttribute('id') || 'Línea';
+        } else if (tag === 'polygon' || tag === 'polyline') {
+          const ptsAttr = node.getAttribute('points') || '';
+          const nums = (ptsAttr.match(/-?\d*\.?\d+(?:e-?\d+)?/gi) || []).map(Number);
+          if (nums.length >= 4) {
+            cmds = [['M', nums[0], nums[1]]];
+            for (let j = 2; j < nums.length; j += 2) cmds.push(['L', nums[j], nums[j + 1]]);
+            if (tag === 'polygon') cmds.push(['Z']);
+            shapeName = node.getAttribute('id') || (tag === 'polygon' ? 'Polígono' : 'Polilínea');
+          }
+        }
+
+        if (cmds && cmds.length) {
+          if (!curMatrix.isIdentity) {
+            cmds = cmds.map(c => {
+              if (c[0] === 'Z') return ['Z'];
+              const out = [c[0]];
+              for (let k = 1; k < c.length; k += 2) {
+                const pt = curMatrix.transformPoint(new DOMPoint(c[k], c[k + 1]));
+                out.push(+pt.x.toFixed(3), +pt.y.toFixed(3));
+              }
+              return out;
+            });
+          }
+          shapes.push({
+            d: dToStr(cmds),
+            fill: curStyle.fill,
+            stroke: curStyle.stroke,
+            sw: curStyle.sw,
+            fillRule: curStyle.fillRule,
+            opacity: curStyle.opacity,
+            name: shapeName
+          });
+        }
+
+        for (const child of node.children) {
+          walk(child, curMatrix, curStyle);
+        }
+      }
+
+      for (const child of root.children) {
+        walk(child, new DOMMatrix(), { fill: 'none', stroke: '', sw: 1, fillRule: 'nonzero', opacity: 1 });
+      }
+
+      return shapes;
+    }
+
     function extractLayerCmds(l) {
       if (!l) return null;
       if (l.type === 'raw' && l.raw) {
         try {
-          const docXml = new DOMParser().parseFromString(l.raw, 'image/svg+xml');
-          const pathEl = docXml.querySelector('path');
-          if (pathEl && pathEl.getAttribute('d')) return parseD(pathEl.getAttribute('d'));
-          const polyEl = docXml.querySelector('polygon, polyline');
-          if (polyEl && polyEl.getAttribute('points')) {
-            const nums = (polyEl.getAttribute('points').match(/-?\d*\.?\d+(?:e-?\d+)?/gi) || []).map(Number);
-            if (nums.length >= 4) {
-              const cmds = [['M', nums[0], nums[1]]];
-              for (let i = 2; i < nums.length; i += 2) cmds.push(['L', nums[i], nums[i + 1]]);
-              cmds.push(['Z']);
-              return cmds;
-            }
+          const shapes = extractShapesFromSvg(l.raw);
+          if (shapes.length > 0) {
+            const combinedD = shapes.map(s => s.d).join(' ');
+            return parseD(combinedD);
           }
         } catch (e) { }
       }
@@ -3101,7 +3554,64 @@
       const l = targetLayer || selLayer();
       if (!l) { showHint('Selecciona una forma'); return null; }
       if (l.type === 'path') return l;
-      if (!['rect', 'ellipse', 'polygon', 'line'].includes(l.type)) { showHint('Este tipo de capa no puede convertirse en trazado'); return null; }
+
+      if (l.type === 'raw') {
+        const shapes = extractShapesFromSvg(l.raw);
+        if (!shapes.length) {
+          showHint('No se encontraron trazados vectoriales en este SVG');
+          return null;
+        }
+        snapshot();
+        const idx = doc.layers.findIndex(x => x.id === l.id);
+        if (idx === -1) return null;
+
+        if (shapes.length === 1) {
+          const s = shapes[0];
+          l.type = 'path';
+          l.attrs = {
+            d: s.d,
+            fill: s.fill,
+            stroke: s.stroke,
+            sw: s.sw,
+            fillRule: s.fillRule
+          };
+          if (s.opacity !== undefined && s.opacity !== 1) l.base.opacity = s.opacity;
+          delete l.raw;
+          selectOnly(l.id);
+          refresh();
+          showHint('Capa SVG convertida a trazado editable por nodos');
+          return l;
+        } else {
+          const baseName = l.name ? l.name.replace(/\s+\d+$/, '') : 'Trazado';
+          const newLayers = shapes.map((s, i) => ({
+            id: uid(),
+            name: s.name ? `${baseName} (${s.name})` : `${baseName} ${i + 1}`,
+            type: 'path',
+            attrs: {
+              d: s.d,
+              fill: s.fill,
+              stroke: s.stroke,
+              sw: s.sw,
+              fillRule: s.fillRule
+            },
+            base: { ...DEF_BASE, opacity: s.opacity !== undefined ? s.opacity : 1 },
+            visible: true,
+            locked: false,
+            scene: l.scene
+          }));
+          doc.layers.splice(idx, 1, ...newLayers);
+          delete anims[l.id];
+          selectOnly(newLayers[0].id);
+          refresh();
+          showHint(`SVG dividido en ${newLayers.length} trazados editables por nodos`);
+          return newLayers[0];
+        }
+      }
+
+      if (!['rect', 'ellipse', 'polygon', 'line'].includes(l.type)) {
+        showHint('Este tipo de capa no puede convertirse en trazado');
+        return null;
+      }
       if (keysOf(l.id, 'geom') && !confirm('Esta forma tiene geometría animada; al convertirla a trazado se descartan esas claves. ¿Continuar?')) return null;
       snapshot();
       if (anims[l.id]) delete anims[l.id].geom;
@@ -3120,14 +3630,18 @@
       if (l.type !== 'path') {
         selectOnly(l.id);
         l = convertToPath(l);
-        if (!l) return;
+        if (!l || l.type !== 'path') return;
       }
       try {
         const subs = nodesFromD(l.attrs.d);
         const sel = (subs.length && subs[0].nodes.length) ? { si: 0, ni: 0 } : null;
         S.nodeEdit = { id: l.id, subs, sel };
       }
-      catch (e) { alert('Este trazado contiene comandos no compatibles con la edición de nodos (arcos o coordenadas relativas).'); S.nodeEdit = null; return; }
+      catch (e) {
+        alert('Este trazado contiene comandos no compatibles con la edición de nodos.');
+        S.nodeEdit = null;
+        return;
+      }
       selectOnly(l.id);
       refreshPanels(); drawOverlay();
     }
@@ -4696,19 +5210,23 @@
       <button class="mini" data-a="eye" title="${l.visible ? 'Ocultar' : 'Mostrar'}">${l.visible ? '👁' : '🚫'}</button>
       <button class="mini" data-a="lock" title="${l.locked ? 'Desbloquear' : 'Bloquear'}" style="${l.locked ? 'background:rgba(255,84,112,0.15);border-color:rgba(255,84,112,0.35);opacity:1;' : ''}">${lockSvg}</button>`;
         d.onclick = e => {
-          const a = e.target.dataset.a;
-          if (a === 'eye') {
-            l.visible = !l.visible;
-            if (!l.visible && S.nodeEdit && S.nodeEdit.id === l.id) S.nodeEdit = null;
-            refresh();
-            return;
-          }
-          if (a === 'lock') {
-            l.locked = !l.locked;
-            if (l.locked && S.nodeEdit && S.nodeEdit.id === l.id) S.nodeEdit = null;
-            renderLayersPanel();
-            drawOverlay();
-            return;
+          const btn = e.target.closest('button[data-a]');
+          if (btn) {
+            e.stopPropagation();
+            const a = btn.dataset.a;
+            if (a === 'eye') {
+              l.visible = !l.visible;
+              if (!l.visible && S.nodeEdit && S.nodeEdit.id === l.id) S.nodeEdit = null;
+              refresh();
+              return;
+            }
+            if (a === 'lock') {
+              l.locked = !l.locked;
+              if (l.locked && S.nodeEdit && S.nodeEdit.id === l.id) S.nodeEdit = null;
+              renderLayersPanel();
+              drawOverlay();
+              return;
+            }
           }
           selectLayer(l.id, e.shiftKey || e.ctrlKey || e.metaKey);
         };
@@ -5242,9 +5760,16 @@
       $$('.toolbtn[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === t));
       area.className = ''; area.classList.add('tool-' + t);
       if (t === 'node') {
-        const l = selLayer();
-        if (l && !l.locked && ['path', 'rect', 'ellipse', 'polygon', 'line'].includes(l.type)) {
-          if (!S.nodeEdit || S.nodeEdit.id !== l.id) enterNodeEdit(l);
+        let l = selLayer();
+        if (l && !l.locked) {
+          if (l.type === 'raw') {
+            l = convertToPath(l);
+          }
+          if (l && ['path', 'rect', 'ellipse', 'polygon', 'line'].includes(l.type)) {
+            if (!S.nodeEdit || S.nodeEdit.id !== l.id) enterNodeEdit(l);
+          } else {
+            S.nodeEdit = null;
+          }
         } else {
           S.nodeEdit = null;
         }
@@ -5660,11 +6185,16 @@
       }
       const g = e.target.closest('g.layer');
       if (g) {
-        const l2 = getLayer(g.dataset.id);
+        let l2 = getLayer(g.dataset.id);
         if (l2 && !l2.locked) {
-          setTool('node');
-          enterNodeEdit(l2);
-          insertNodeAt(pt);
+          if (l2.type === 'raw') {
+            l2 = convertToPath(l2);
+          }
+          if (l2) {
+            setTool('node');
+            enterNodeEdit(l2);
+            insertNodeAt(pt);
+          }
         }
       }
     });
@@ -5731,7 +6261,29 @@
           else if (S.selKf) { deleteSelKf(); }
           else deleteSelected();
           break;
-        case 'ArrowUp': case 'ArrowDown': case 'ArrowLeft': case 'ArrowRight': {
+        case 'Home':
+          e.preventDefault();
+          setTime(0);
+          break;
+        case 'End':
+          e.preventDefault();
+          setTime(doc.dur);
+          break;
+        case 'ArrowLeft':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            setTime(Math.max(0, +(S.T - 1).toFixed(2)));
+            break;
+          }
+          /* fallthrough */
+        case 'ArrowRight':
+          if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowRight') {
+            e.preventDefault();
+            setTime(Math.min(doc.dur, +(S.T + 1).toFixed(2)));
+            break;
+          }
+          /* fallthrough */
+        case 'ArrowUp': case 'ArrowDown': {
           const ls = selLayers(); if (!ls.length) break;
           e.preventDefault(); editSnap();
           const d = e.shiftKey ? 10 : 1;
@@ -6194,8 +6746,14 @@
       } else if (S.abA != null) {
         h += `<div class="abBand" style="left:${TPAD + S.abA * PPS}px;width:2px" title="Punto A (Alt+clic fija B)"></div>`;
       }
-      // marca de fin de duración
-      h += `<div style="position:absolute;left:${TPAD + doc.dur * PPS}px;top:0;bottom:0;border-left:2px solid var(--danger);opacity:.6" title="Fin de la animación"></div>`;
+      // marca y tirador arrastrable de fin de duración
+      h += `<div id="durMarker" class="dur-marker" style="left:${TPAD + doc.dur * PPS}px" title="Duración: ${doc.dur.toFixed(2)}s (Arrastra para cambiar duración)">
+        <div class="dur-handle" title="Arrastra para cambiar la duración máxima">
+          <span style="font-size:10px;pointer-events:none;line-height:1">⇥</span>
+          <span style="pointer-events:none;line-height:1">${doc.dur.toFixed(1)}s</span>
+        </div>
+        <div class="dur-line"></div>
+      </div>`;
       r.innerHTML = h;
       $('#rulerPlayhead').style.left = (TPAD + S.T * PPS - $('#tTracksWrap').scrollLeft) + 'px';
     }
@@ -6297,6 +6855,7 @@
       if (ph) ph.style.left = (TPAD + S.T * PPS) + 'px';
       $('#rulerPlayhead').style.left = (TPAD + S.T * PPS - $('#tTracksWrap').scrollLeft) + 'px';
       $('#timeLabel').textContent = S.T.toFixed(2) + 's';
+      if (typeof updateTlZoomHud === 'function') updateTlZoomHud();
     }
     function setTime(t, updateUI) {
       S.T = clamp(t, 0, Math.max(doc.dur, t > doc.dur ? t : doc.dur));
@@ -6307,13 +6866,57 @@
     }
 
     /* --- scrub en la regla y en las pistas --- */
+    function getSnapTime(rawT, thresholdPx = 8) {
+      const thresholdSec = thresholdPx / PPS;
+      let bestT = rawT;
+      let minDiff = thresholdSec;
+      for (const id in anims) {
+        const la = anims[id];
+        if (!la) continue;
+        for (const prop in la) {
+          const ks = la[prop];
+          if (!ks) continue;
+          for (const k of ks) {
+            const diff = Math.abs(k.t - rawT);
+            if (diff < minDiff) {
+              minDiff = diff;
+              bestT = k.t;
+            }
+          }
+        }
+      }
+      if (Math.abs(rawT) < minDiff) {
+        minDiff = Math.abs(rawT);
+        bestT = 0;
+      }
+      if (Math.abs(doc.dur - rawT) < minDiff) {
+        minDiff = Math.abs(doc.dur - rawT);
+        bestT = doc.dur;
+      }
+      return bestT;
+    }
+
     function scrubFromEvent(e, el) {
       const r = el.getBoundingClientRect();
       const x = e.clientX - r.left + (el === $('#tRulerWrap') ? $('#tTracksWrap').scrollLeft : el.scrollLeft || 0);
-      setTime(Math.max(0, (x - TPAD) / PPS), false);
+      let t = Math.max(0, (x - TPAD) / PPS);
+      if (!e.shiftKey) {
+        t = getSnapTime(t, 8);
+      }
+      setTime(t, false);
     }
     let scrubbing = false;
+    let durDrag = null;
     $('#tRulerWrap').addEventListener('pointerdown', e => {
+      if (e.target.closest('#tlRightControls')) return;
+      const dh = e.target.closest('.dur-handle');
+      if (dh) {
+        e.preventDefault();
+        e.stopPropagation();
+        durDrag = { startX: e.clientX, origDur: doc.dur };
+        $('#tRulerWrap').setPointerCapture(e.pointerId);
+        return;
+      }
       if (e.altKey) {
         const r = $('#tRulerWrap').getBoundingClientRect();
         const t = Math.max(0, (e.clientX - r.left + $('#tTracksWrap').scrollLeft - TPAD) / PPS);
@@ -6333,13 +6936,46 @@
     }, { passive: false });
     $('#tRulerWrap').addEventListener('wheel', e => {
       e.preventDefault();
+      if (e.ctrlKey || e.metaKey) {
+        tlZoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX);
+        return;
+      }
       $('#tTracksWrap').scrollLeft += e.deltaY;
     }, { passive: false });
     $('#tTracksWrap').addEventListener('wheel', e => {
-      if (e.ctrlKey || e.metaKey) { e.preventDefault(); $('#tTracksWrap').scrollLeft += e.deltaY; }
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        tlZoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX);
+        return;
+      }
     }, { passive: false });
-    $('#tRulerWrap').addEventListener('pointermove', e => { if (scrubbing) scrubFromEvent(e, $('#tRulerWrap')); });
-    $('#tRulerWrap').addEventListener('pointerup', e => { scrubbing = false; renderProps(); renderTimeline(); });
+    $('#tRulerWrap').addEventListener('pointermove', e => {
+      if (durDrag) {
+        const r = $('#tRulerWrap').getBoundingClientRect();
+        const x = e.clientX - r.left + $('#tTracksWrap').scrollLeft;
+        let newDur = Math.max(0.1, +((x - TPAD) / PPS).toFixed(2));
+        if (!e.shiftKey) {
+          const step = 0.5;
+          const snapped = Math.round(newDur / step) * step;
+          if (Math.abs(snapped - newDur) < (8 / PPS)) newDur = +snapped.toFixed(2);
+        }
+        doc.dur = Math.max(0.1, newDur);
+        const dd = $('#docDur'); if (dd) dd.value = doc.dur.toFixed(2);
+        renderTimeline();
+        return;
+      }
+      if (scrubbing) scrubFromEvent(e, $('#tRulerWrap'));
+    });
+    $('#tRulerWrap').addEventListener('pointerup', e => {
+      if (durDrag) {
+        snapshot();
+        durDrag = null;
+        if (S.T > doc.dur) setTime(doc.dur);
+        renderTimeline();
+        return;
+      }
+      scrubbing = false; renderProps(); renderTimeline();
+    });
 
     /* --- interacción con keyframes --- */
     let kfDrag = null;
@@ -6355,10 +6991,11 @@
         renderTimeline(); showKfPopup();
         return;
       }
-      // clic en pista vacía → mover playhead
-      if (e.target.classList.contains('trow') || e.target.id === 'tTracks') {
+      // clic en pista vacía o en playhead → mover playhead
+      if (e.target.classList.contains('trow') || e.target.id === 'tTracks' || e.target.id === 'playhead' || e.target.closest('#playhead')) {
         hideKfPopup(); S.selKf = null;
         scrubbing = true;
+        $('#tTracksWrap').setPointerCapture(e.pointerId);
         scrubFromEvent(e, { getBoundingClientRect: () => $('#tTracks').getBoundingClientRect() });
         renderTimeline();
       }
@@ -6399,8 +7036,16 @@
       pop.classList.add('open');
       if (kfEl) {
         const r = kfEl.getBoundingClientRect();
-        pop.style.left = Math.min(window.innerWidth - 260, Math.max(4, r.left - 40)) + 'px';
-        pop.style.top = (r.top - 44) + 'px';
+        const popW = pop.offsetWidth || 260;
+        const popH = pop.offsetHeight || 42;
+        let left = r.right + 12;
+        if (left + popW > window.innerWidth - 10) {
+          left = Math.max(10, r.left - popW - 12);
+        }
+        let top = r.top + (r.height / 2) - (popH / 2);
+        top = Math.max(10, Math.min(window.innerHeight - popH - 10, top));
+        pop.style.left = left + 'px';
+        pop.style.top = top + 'px';
       }
       $('#kfEasingSel').value = (k.ease && k.ease.cb) ? 'custom' : (k.ease || 'linear');
       $('#kfTime').value = k.t.toFixed(2);
@@ -6465,15 +7110,50 @@
     $('#btnToStart').onclick = () => setTime(0);
     $('#btnLoop').onclick = function () { S.loop = !S.loop; this.style.opacity = S.loop ? 1 : .4; };
     $('#speedSel').onchange = e => { S.speed = +e.target.value || 1; };
+    function updateTlZoomHud() {
+      const el = $('#tlZoomPct');
+      if (el) el.textContent = Math.round((PPS / 100) * 100) + '%';
+    }
     function tlZoom(f) {
       const w = $('#tTracksWrap'), mid = (w.scrollLeft + w.clientWidth / 2 - TPAD) / PPS;
       PPS = clamp(Math.round(PPS * f), 18, 800);
       renderTimeline();
       w.scrollLeft = Math.max(0, mid * PPS + TPAD - w.clientWidth / 2);
       positionPlayhead();
+      updateTlZoomHud();
     }
-    $('#tlZoomIn').onclick = () => tlZoom(1.35);
-    $('#tlZoomOut').onclick = () => tlZoom(1 / 1.35);
+    function tlZoomAt(f, clientX) {
+      const w = $('#tTracksWrap');
+      const r = w.getBoundingClientRect();
+      const mouseX = (clientX != null) ? (clientX - r.left + w.scrollLeft) : (w.scrollLeft + w.clientWidth / 2);
+      const timeAtMouse = Math.max(0, (mouseX - TPAD) / PPS);
+      const oldPPS = PPS;
+      PPS = clamp(Math.round(PPS * f), 18, 800);
+      if (PPS === oldPPS) return;
+      renderTimeline();
+      if (clientX != null) {
+        w.scrollLeft = Math.max(0, TPAD + timeAtMouse * PPS - (clientX - r.left));
+      } else {
+        w.scrollLeft = Math.max(0, TPAD + timeAtMouse * PPS - w.clientWidth / 2);
+      }
+      positionPlayhead();
+      updateTlZoomHud();
+    }
+    function tlZoomFit() {
+      const w = $('#tTracksWrap');
+      const availW = w.clientWidth - TPAD - 70;
+      if (availW > 50 && doc.dur > 0) {
+        PPS = clamp(Math.floor(availW / doc.dur), 18, 800);
+        renderTimeline();
+        w.scrollLeft = 0;
+        positionPlayhead();
+        updateTlZoomHud();
+      }
+    }
+    $('#tlZoomIn').onclick = () => tlZoom(1.25);
+    $('#tlZoomOut').onclick = () => tlZoom(1 / 1.25);
+    const btnTlFit = $('#tlZoomFit');
+    if (btnTlFit) btnTlFit.onclick = tlZoomFit;
 
     /* --- altura del timeline (arrastrable y recordada) --- */
     (function () {
