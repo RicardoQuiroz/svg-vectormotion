@@ -5,6 +5,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VectorMotion — Editor SVG y Animación</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
   <style>
     :root {
       --bg: #16171c;
@@ -3608,6 +3611,32 @@
         }
       }
 
+      if (l.type === 'text') {
+        if (keysOf(l.id, 'geom') && !confirm('Este texto tiene geometría animada; al convertirlo a trazado se descartan esas claves. ¿Continuar?')) return null;
+        snapshot();
+        if (anims[l.id]) delete anims[l.id].geom;
+        const a = l.attrs;
+        const fill = (a.fill !== undefined && a.fill !== null) ? a.fill : '#7c5cff';
+        const stroke = a.stroke || '';
+        const sw = a.sw || 1;
+        showHint('Convirtiendo texto a trazado vectorial...');
+        return textToPathD(a).then(d => {
+          if (!d || d.length < 5) {
+            showHint('No se pudo convertir el texto a trazado');
+            return null;
+          }
+          l.type = 'path';
+          l.attrs = { d, fill, stroke, sw, fillRule: 'evenodd' };
+          refresh();
+          showHint('Texto convertido a trazado editable por nodos');
+          return l;
+        }).catch(err => {
+          console.error(err);
+          showHint('Error al convertir texto a trazado');
+          return null;
+        });
+      }
+
       if (!['rect', 'ellipse', 'polygon', 'line'].includes(l.type)) {
         showHint('Este tipo de capa no puede convertirse en trazado');
         return null;
@@ -3629,7 +3658,14 @@
       if (!l || l.locked) return;
       if (l.type !== 'path') {
         selectOnly(l.id);
-        l = convertToPath(l);
+        const res = convertToPath(l);
+        if (res instanceof Promise) {
+          res.then(nl => {
+            if (nl && nl.type === 'path') enterNodeEdit(nl);
+          });
+          return;
+        }
+        l = res;
         if (!l || l.type !== 'path') return;
       }
       try {
@@ -4211,7 +4247,11 @@
     function loadProjectData(s) {
       doc = s.doc; anims = s.anims || {};
       doc.routes = doc.routes || []; doc.scenes = doc.scenes || []; doc.guides = doc.guides || [];
-      for (const l of doc.layers) { l.base = { ...DEF_BASE, ...l.base }; if (l.scene === undefined) l.scene = null; }
+      for (const l of doc.layers) {
+        l.base = { ...DEF_BASE, ...l.base };
+        if (l.scene === undefined) l.scene = null;
+        if (l.type === 'text' && l.attrs && l.attrs.ff) loadGoogleFont(l.attrs.ff);
+      }
       selectOnly(null); computeDocDur();
       refresh(); zoomFit();
     }
@@ -5308,8 +5348,301 @@
       drawOverlay();
     }
 
-    /* ---------------- Panel de propiedades ---------------- */
-    const FONTS = ['sans-serif', 'serif', 'monospace', 'Arial', 'Helvetica', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Segoe UI', 'Georgia', 'Times New Roman', 'Garamond', 'Palatino', 'Courier New', 'Lucida Console', 'Impact', 'Comic Sans MS', 'Brush Script MT'];
+    /* ---------------- Panel de propiedades y Tipografía ---------------- */
+    const SYSTEM_FONTS = [
+      'sans-serif', 'serif', 'monospace',
+      'Arial', 'Helvetica', 'Verdana', 'Tahoma', 'Trebuchet MS',
+      'Segoe UI', 'Georgia', 'Times New Roman', 'Garamond', 'Palatino',
+      'Courier New', 'Lucida Console', 'Impact', 'Comic Sans MS', 'Brush Script MT'
+    ];
+    const POPULAR_GOOGLE_FONTS = [
+      // Sans-Serif populares
+      'Roboto', 'Open Sans', 'Montserrat', 'Poppins', 'Lato', 'Inter',
+      'Oswald', 'Raleway', 'Nunito', 'Rubik', 'Fira Sans', 'Work Sans',
+      // Serif elegantes
+      'Playfair Display', 'Merriweather', 'Lora', 'PT Serif', 'Cinzel', 'Cormorant Garamond',
+      // Titulares / Display con personalidad
+      'Bebas Neue', 'Anton', 'Bangers', 'Orbitron', 'Righteous', 'Press Start 2P', 'Abril Fatface',
+      // Cursivas / Manuscritas
+      'Pacifico', 'Dancing Script', 'Lobster', 'Caveat', 'Satisfy', 'Kalam', 'Permanent Marker', 'Sacramento',
+      // Monospace
+      'Fira Code', 'Source Code Pro', 'Space Mono'
+    ];
+    const loadedGoogleFonts = new Set();
+    const customLoadedGoogleFonts = [];
+    const opentypeCache = {};
+
+    function loadGoogleFont(fontName) {
+      if (!fontName) return;
+      const clean = fontName.trim();
+      if (!clean || SYSTEM_FONTS.includes(clean)) return;
+      if (!loadedGoogleFonts.has(clean)) {
+        const id = 'gfont-' + clean.toLowerCase().replace(/[^a-z0-9]/g, '-');
+        if (!document.getElementById(id)) {
+          const link = document.createElement('link');
+          link.id = id;
+          link.rel = 'stylesheet';
+          link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(clean)}:ital,wght@0,300;0,400;0,600;0,700;0,800;0,900;1,400;1,700&display=swap`;
+          document.head.appendChild(link);
+        }
+        loadedGoogleFonts.add(clean);
+      }
+      if (!POPULAR_GOOGLE_FONTS.includes(clean) && !customLoadedGoogleFonts.includes(clean)) {
+        customLoadedGoogleFonts.push(clean);
+      }
+      preloadOpentypeFont(clean);
+    }
+
+    async function fetchOpentypeFont(fontName) {
+      if (opentypeCache[fontName]) return opentypeCache[fontName];
+      if (typeof opentype === 'undefined') return null;
+      const slug = fontName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const url = `https://cdn.jsdelivr.net/npm/@fontsource/${slug}@5.0.8/files/${slug}-latin-400-normal.woff`;
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          const buf = await res.arrayBuffer();
+          const font = opentype.parse(buf);
+          opentypeCache[fontName] = font;
+          return font;
+        }
+      } catch (e) { }
+      return null;
+    }
+
+    function preloadOpentypeFont(fontName) {
+      if (!fontName || opentypeCache[fontName]) return;
+      fetchOpentypeFont(fontName).catch(() => {});
+    }
+
+    // Pre-cargar Roboto como fuente vectorial estándar
+    setTimeout(() => { preloadOpentypeFont('Roboto'); }, 500);
+
+    /* Conversión de texto a trazado SVG (OpenType con curvas Bézier + Canvas Marching Squares fallback) */
+    async function textToPathD(a) {
+      const text = (a.text != null && a.text !== '') ? String(a.text) : 'Texto';
+      const fs = +a.fs || 28;
+      const ff = a.ff || 'sans-serif';
+      const fw = a.fw || 'normal';
+      const fst = a.fst ? 'italic' : 'normal';
+      const anchor = a.anchor || 'start';
+      const x = +a.x || 0;
+      const y = +a.y || 0;
+      const ls = +a.ls || 0;
+
+      // 1. Intentar con opentype.js para curvas Bézier exactas
+      if (typeof opentype !== 'undefined') {
+        let font = await fetchOpentypeFont(ff);
+        if (!font && ff.toLowerCase() !== 'roboto' && !SYSTEM_FONTS.includes(ff)) {
+          font = await fetchOpentypeFont('Roboto');
+        }
+        if (font) {
+          const lines = text.split('\n');
+          const lineHeight = fs * 1.25;
+          const dParts = [];
+          lines.forEach((line, idx) => {
+            let lx = x;
+            const ly = y + idx * lineHeight;
+            const width = font.getAdvanceWidth(line, fs, { letterSpacing: ls });
+            if (anchor === 'middle') lx -= width / 2;
+            else if (anchor === 'end') lx -= width;
+
+            const path = font.getPath(line, lx, ly, fs, { letterSpacing: ls });
+            const pd = path.toPathData(2);
+            if (pd) dParts.push(pd);
+          });
+          const fullD = dParts.join(' ').trim();
+          if (fullD && fullD.length > 5) return fullD;
+        }
+      }
+
+      // 2. Fallback de trazado por contorno Canvas (para fuentes locales de sistema y modo offline)
+      return canvasTextToPathD(text, x, y, fs, ff, fw, fst, anchor, ls);
+    }
+
+    function canvasTextToPathD(text, x, y, fs, ff, fw, fst, anchor, ls) {
+      const lines = String(text || '').split('\n');
+      const scale = 2;
+      const scaledFs = fs * scale;
+      const fontSpec = `${fst === 'italic' ? 'italic ' : ''}${fw === 'bold' || +fw >= 600 ? 'bold ' : (fw && fw !== 'normal' ? fw + ' ' : '')}${scaledFs}px "${ff}", sans-serif`;
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.font = fontSpec;
+
+      const lineHeight = scaledFs * 1.25;
+      let maxW = 50;
+      const lineMetrics = lines.map(line => {
+        const w = ctx.measureText(line).width + (ls ? (line.length - 1) * ls * scale : 0);
+        if (w > maxW) maxW = w;
+        return w;
+      });
+
+      const pad = Math.ceil(scaledFs * 0.8);
+      const W = Math.ceil(maxW + pad * 2);
+      const H = Math.ceil(lines.length * lineHeight + pad * 2);
+      canvas.width = Math.max(10, Math.min(4000, W));
+      canvas.height = Math.max(10, Math.min(4000, H));
+
+      ctx.font = fontSpec;
+      ctx.fillStyle = '#ffffff';
+      ctx.textBaseline = 'alphabetic';
+
+      const baseLineY = pad + scaledFs * 0.85;
+      lines.forEach((line, i) => {
+        let lx = pad;
+        if (anchor === 'middle') lx = pad + (maxW - lineMetrics[i]) / 2;
+        else if (anchor === 'end') lx = pad + (maxW - lineMetrics[i]);
+        const ly = baseLineY + i * lineHeight;
+        ctx.fillText(line, lx, ly);
+      });
+
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      const cW = canvas.width, cH = canvas.height;
+
+      const val = (px, py) => {
+        if (px < 0 || px >= cW || py < 0 || py >= cH) return 0;
+        return data[(py * cW + px) * 4 + 3] > 120 ? 1 : 0;
+      };
+
+      const segments = [];
+      for (let py = 0; py < cH - 1; py++) {
+        for (let px = 0; px < cW - 1; px++) {
+          const tl = val(px, py), tr = val(px + 1, py), br = val(px + 1, py + 1), bl = val(px, py + 1);
+          const state = (tl << 3) | (tr << 2) | (br << 1) | bl;
+          if (state === 0 || state === 15) continue;
+          const top = [px + 0.5, py], right = [px + 1, py + 0.5], bottom = [px + 0.5, py + 1], left = [px, py + 0.5];
+          switch (state) {
+            case 1: segments.push([left, bottom]); break;
+            case 2: segments.push([bottom, right]); break;
+            case 3: segments.push([left, right]); break;
+            case 4: segments.push([top, right]); break;
+            case 5: segments.push([left, top]); segments.push([bottom, right]); break;
+            case 6: segments.push([top, bottom]); break;
+            case 7: segments.push([left, top]); break;
+            case 8: segments.push([top, left]); break;
+            case 9: segments.push([top, bottom]); break;
+            case 10: segments.push([top, right]); segments.push([left, bottom]); break;
+            case 11: segments.push([top, right]); break;
+            case 12: segments.push([right, left]); break;
+            case 13: segments.push([bottom, right]); break;
+            case 14: segments.push([left, bottom]); break;
+          }
+        }
+      }
+
+      const segs = segments.map(s => ({ p1: s[0], p2: s[1], used: false }));
+      const map = new Map();
+      const key = p => `${Math.round(p[0] * 2)},${Math.round(p[1] * 2)}`;
+      segs.forEach((s, idx) => {
+        const k1 = key(s.p1), k2 = key(s.p2);
+        if (!map.has(k1)) map.set(k1, []);
+        map.get(k1).push({ idx, end: 1 });
+        if (!map.has(k2)) map.set(k2, []);
+        map.get(k2).push({ idx, end: 2 });
+      });
+
+      const rings = [];
+      for (let i = 0; i < segs.length; i++) {
+        if (segs[i].used) continue;
+        segs[i].used = true;
+        const ring = [segs[i].p1, segs[i].p2];
+        let cur = segs[i].p2;
+        while (true) {
+          const candidates = map.get(key(cur)) || [];
+          let foundNext = false;
+          for (const c of candidates) {
+            if (!segs[c.idx].used) {
+              segs[c.idx].used = true;
+              const nextPt = (c.end === 1) ? segs[c.idx].p2 : segs[c.idx].p1;
+              ring.push(nextPt);
+              cur = nextPt;
+              foundNext = true;
+              break;
+            }
+          }
+          if (!foundNext) break;
+          if (Math.hypot(cur[0] - ring[0][0], cur[1] - ring[0][1]) < 0.8) break;
+        }
+        if (ring.length >= 4) rings.push(ring);
+      }
+
+      function rdp(pts, eps) {
+        if (pts.length <= 2) return pts;
+        let dmax = 0, idx = 0;
+        const end = pts.length - 1;
+        for (let i = 1; i < end; i++) {
+          const dx = pts[end][0] - pts[0][0], dy = pts[end][1] - pts[0][1];
+          const mag = Math.hypot(dx, dy);
+          const d = mag < 1e-5 ? Math.hypot(pts[i][0] - pts[0][0], pts[i][1] - pts[0][1]) :
+            Math.abs(dy * pts[i][0] - dx * pts[i][1] + pts[end][0] * pts[0][1] - pts[end][1] * pts[0][0]) / mag;
+          if (d > dmax) { idx = i; dmax = d; }
+        }
+        if (dmax > eps) {
+          return rdp(pts.slice(0, idx + 1), eps).slice(0, -1).concat(rdp(pts.slice(idx), eps));
+        }
+        return [pts[0], pts[end]];
+      }
+
+      let anchorOffsetX = 0;
+      if (anchor === 'middle') anchorOffsetX = -maxW / (2 * scale);
+      else if (anchor === 'end') anchorOffsetX = -maxW / scale;
+
+      let d = '';
+      for (const ring of rings) {
+        const simp = rdp(ring, 0.8);
+        if (simp.length < 3) continue;
+        const startX = +(x + anchorOffsetX + (simp[0][0] - pad) / scale).toFixed(2);
+        const startY = +(y + (simp[0][1] - baseLineY) / scale).toFixed(2);
+        d += `M${startX} ${startY}`;
+        for (let i = 1; i < simp.length; i++) {
+          const px = +(x + anchorOffsetX + (simp[i][0] - pad) / scale).toFixed(2);
+          const py = +(y + (simp[i][1] - baseLineY) / scale).toFixed(2);
+          d += ` L${px} ${py}`;
+        }
+        d += ' Z ';
+      }
+      return d.trim();
+    }
+
+    function getUsedGoogleFonts() {
+      const gfonts = new Set();
+      for (const l of doc.layers) {
+        if (l.type === 'text' && l.attrs && l.attrs.ff) {
+          const ff = l.attrs.ff;
+          if (!SYSTEM_FONTS.includes(ff)) gfonts.add(ff);
+        }
+      }
+      return [...gfonts];
+    }
+
+    function googleFontsExportDefs() {
+      const fonts = getUsedGoogleFonts();
+      if (!fonts.length) return '';
+      return `<defs><style>\n${fonts.map(f => `@import url('https://fonts.googleapis.com/css2?family=${encodeURIComponent(f)}:ital,wght@0,300;0,400;0,700;0,900;1,400;1,700&display=swap');`).join('\n')}\n</style></defs>`;
+    }
+
+    // Filtrar propiedades aplicables en el timeline según el tipo de capa
+    function applicableAnimProps(layer) {
+      const la = anims[layer.id] || {};
+      return ANIM_PROPS.filter(([prop]) => {
+        if (la[prop] && la[prop].length) return true;
+        if (layer.type === 'text') {
+          // El texto no tiene animación de trazo 'draw' ni morphing 'geom' (hasta convertirse a trazado)
+          if (prop === 'draw' || prop === 'geom') return false;
+        } else if (layer.type === 'image') {
+          if (prop === 'fill' || prop === 'draw' || prop === 'geom') return false;
+        } else if (layer.type === 'line') {
+          if (prop === 'fill' || prop === 'geom') return false;
+        } else if (layer.type === 'raw') {
+          if (prop === 'draw' || prop === 'geom') return false;
+        }
+        return true;
+      });
+    }
+
+    const FONTS = [...SYSTEM_FONTS, ...POPULAR_GOOGLE_FONTS];
     function kBtn(prop) {
       const l = selLayer(); if (!l) return '';
       const ks = keysOf(l.id, prop);
@@ -5386,35 +5719,61 @@
       }
       h += pgEnd;
 
-      h += pg('geom', 'Geometría', l.type !== 'raw' ? kBtn('geom') : '');
-      if (keysOf(l.id, 'geom')) h += `<div class="empty-note" style="padding:2px 0 6px">Geometría animada (morphing): cada edición de forma clava keyframe en t=${S.T.toFixed(2)}s.</div>`;
-      switch (l.type) {
-        case 'rect': h += attrRow('X', 'x', a.x) + attrRow('Y', 'y', a.y) + attrRow('Ancho', 'w', a.w) + attrRow('Alto', 'h', a.h) + attrRow('Radio', 'rx', a.rx || 0)
-          + effPosRow('X', a.x, 'x', p.tx, p.ty) + effPosRow('Y', a.y, 'y', p.tx, p.ty); break;
-        case 'ellipse': h += attrRow('Centro X', 'cx', a.cx) + attrRow('Centro Y', 'cy', a.cy) + attrRow('Radio X', 'rx', a.rx) + attrRow('Radio Y', 'ry', a.ry)
-          + effPosRow('Cx', a.cx, 'x', p.tx, p.ty) + effPosRow('Cy', a.cy, 'y', p.tx, p.ty); break;
-        case 'line': h += attrRow('X1', 'x1', a.x1) + attrRow('Y1', 'y1', a.y1) + attrRow('X2', 'x2', a.x2) + attrRow('Y2', 'y2', a.y2)
-          + effPosRow('X1', a.x1, 'x', p.tx, p.ty) + effPosRow('Y1', a.y1, 'y', p.tx, p.ty)
-          + effPosRow('X2', a.x2, 'x', p.tx, p.ty) + effPosRow('Y2', a.y2, 'y', p.tx, p.ty); break;
-        case 'polygon':
-          h += attrRow('Centro X', 'cx', a.cx) + attrRow('Centro Y', 'cy', a.cy) + attrRow('Radio', 'r', a.r) + attrRow('Lados', 'sides', a.sides || 5, 1)
-            + `<div class="prow"><label>Estrella</label><input type="checkbox" data-battr="star"${a.star ? ' checked' : ''}></div>`
-            + attrRow('Radio int.', 'ir', a.ir === undefined ? 0.5 : a.ir, 0.05); break;
-        case 'text':
-          h += `<div class="prow"><label>Texto</label><input type="text" data-tattr="text" value="${esc(a.text)}"></div>`
-            + attrRow('Tamaño', 'fs', a.fs || 24)
-            + `<div class="prow"><label>Fuente</label><select data-sattr="ff">${FONTS.map(f => `<option value="${f}"${(a.ff || 'sans-serif') === f ? ' selected' : ''}>${f}</option>`).join('')}</select></div>`
-            + `<div class="prow"><label>Fuente libre</label><input type="text" data-tattr="ff" value="${esc(a.ff || 'sans-serif')}" title="Cualquier fuente instalada o de sistema"></div>`
-            + `<div class="prow"><label>Estilo</label>
-           <button class="mini${(a.fw === 'bold' || +a.fw >= 600) ? ' active' : ''}" data-a="bold" title="Negrita" style="font-weight:bold">B</button>
-           <button class="mini${a.fst ? ' active' : ''}" data-a="italic" title="Cursiva" style="font-style:italic">I</button>
-           <button class="mini${a.td ? ' active' : ''}" data-a="under" title="Subrayado" style="text-decoration:underline">U</button></div>`
-            + `<div class="prow"><label>Peso</label><select data-sattr="fw">${['100', '200', '300', 'normal', '500', '600', 'bold', '800', '900'].map(w => `<option value="${w}"${(a.fw || 'normal') === w ? ' selected' : ''}>${w}</option>`).join('')}</select></div>`
-            + attrRow('Espaciado', 'ls', a.ls || 0, 0.5)
-            + `<div class="prow"><label>Anclaje</label><select data-sattr="anchor">
-           <option value="start"${(a.anchor || 'start') === 'start' ? ' selected' : ''}>Izquierda</option>
-           <option value="middle"${a.anchor === 'middle' ? ' selected' : ''}>Centro</option>
-           <option value="end"${a.anchor === 'end' ? ' selected' : ''}>Derecha</option></select></div>`; break;
+      if (l.type === 'text') {
+        h += pg('typography', 'Texto y Tipografía');
+        const curFont = a.ff || 'sans-serif';
+        const isCustom = !POPULAR_GOOGLE_FONTS.includes(curFont) && !SYSTEM_FONTS.includes(curFont) && !customLoadedGoogleFonts.includes(curFont);
+        const allCustom = [...customLoadedGoogleFonts, ...(isCustom ? [curFont] : [])];
+
+        h += `<div class="prow"><label>Texto</label><input type="text" data-tattr="text" value="${esc(a.text)}"></div>`
+          + attrRow('Tamaño', 'fs', a.fs || 28)
+          + `<div class="prow"><label>Fuente</label><select data-sattr="ff">
+              <optgroup label="Fuentes de Google">
+                ${POPULAR_GOOGLE_FONTS.map(f => `<option value="${f}"${curFont === f ? ' selected' : ''}>${f}</option>`).join('')}
+                ${allCustom.map(f => `<option value="${f}"${curFont === f ? ' selected' : ''}>${f} ★</option>`).join('')}
+              </optgroup>
+              <optgroup label="Fuentes del Sistema">
+                ${SYSTEM_FONTS.map(f => `<option value="${f}"${curFont === f ? ' selected' : ''}>${f}</option>`).join('')}
+              </optgroup>
+            </select></div>`
+          + `<div class="prow" style="margin-top:2px;gap:4px">
+              <input type="text" id="inpAddGFont" placeholder="Cargar otra Google Font..." style="flex:1;font-size:11px" title="Escribe el nombre de cualquier fuente de fonts.google.com y presiona Enter o clic en Cargar">
+              <button class="mini" id="btnAddGFont" title="Cargar y aplicar fuente de Google Fonts" style="padding:2px 8px;white-space:nowrap">＋ Cargar</button>
+            </div>`
+          + `<div class="prow"><label>Estilo</label>
+             <button class="mini${(a.fw === 'bold' || +a.fw >= 600) ? ' active' : ''}" data-a="bold" title="Negrita" style="font-weight:bold">B</button>
+             <button class="mini${a.fst ? ' active' : ''}" data-a="italic" title="Cursiva" style="font-style:italic">I</button>
+             <button class="mini${a.td ? ' active' : ''}" data-a="under" title="Subrayado" style="text-decoration:underline">U</button></div>`
+          + `<div class="prow"><label>Peso</label><select data-sattr="fw">${['100', '200', '300', 'normal', '500', '600', 'bold', '800', '900'].map(w => `<option value="${w}"${(a.fw || 'normal') === w ? ' selected' : ''}>${w}</option>`).join('')}</select></div>`
+          + attrRow('Espaciado', 'ls', a.ls || 0, 0.5)
+          + `<div class="prow"><label>Anclaje</label><select data-sattr="anchor">
+             <option value="start"${(a.anchor || 'start') === 'start' ? ' selected' : ''}>Izquierda</option>
+             <option value="middle"${a.anchor === 'middle' ? ' selected' : ''}>Centro</option>
+             <option value="end"${a.anchor === 'end' ? ' selected' : ''}>Derecha</option></select></div>`
+          + `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+              <button class="mini active" data-a="topath" style="width:100%;padding:6px 8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:600;font-size:12px;background:var(--accent);border-color:var(--accent)">
+                <span>✎ Convertir texto a trazado (curvas)</span>
+              </button>
+              <div style="font-size:10.5px;color:var(--txt2);margin-top:5px;line-height:1.35">
+                Convierte cada letra en trazados vectoriales editables por nodos para transformarlo como cualquier polígono, deformar puntos, aplicar morphing o animar su trazado de dibujo.
+              </div>
+            </div>`;
+        h += pgEnd;
+      } else {
+        h += pg('geom', 'Geometría', l.type !== 'raw' ? kBtn('geom') : '');
+        if (keysOf(l.id, 'geom')) h += `<div class="empty-note" style="padding:2px 0 6px">Geometría animada (morphing): cada edición de forma clava keyframe en t=${S.T.toFixed(2)}s.</div>`;
+        switch (l.type) {
+          case 'rect': h += attrRow('X', 'x', a.x) + attrRow('Y', 'y', a.y) + attrRow('Ancho', 'w', a.w) + attrRow('Alto', 'h', a.h) + attrRow('Radio', 'rx', a.rx || 0)
+            + effPosRow('X', a.x, 'x', p.tx, p.ty) + effPosRow('Y', a.y, 'y', p.tx, p.ty); break;
+          case 'ellipse': h += attrRow('Centro X', 'cx', a.cx) + attrRow('Centro Y', 'cy', a.cy) + attrRow('Radio X', 'rx', a.rx) + attrRow('Radio Y', 'ry', a.ry)
+            + effPosRow('Cx', a.cx, 'x', p.tx, p.ty) + effPosRow('Cy', a.cy, 'y', p.tx, p.ty); break;
+          case 'line': h += attrRow('X1', 'x1', a.x1) + attrRow('Y1', 'y1', a.y1) + attrRow('X2', 'x2', a.x2) + attrRow('Y2', 'y2', a.y2)
+            + effPosRow('X1', a.x1, 'x', p.tx, p.ty) + effPosRow('Y1', a.y1, 'y', p.tx, p.ty)
+            + effPosRow('X2', a.x2, 'x', p.tx, p.ty) + effPosRow('Y2', a.y2, 'y', p.tx, p.ty); break;
+          case 'polygon':
+            h += attrRow('Centro X', 'cx', a.cx) + attrRow('Centro Y', 'cy', a.cy) + attrRow('Radio', 'r', a.r) + attrRow('Lados', 'sides', a.sides || 5, 1)
+              + `<div class="prow"><label>Estrella</label><input type="checkbox" data-battr="star"${a.star ? ' checked' : ''}></div>`
+              + attrRow('Radio int.', 'ir', a.ir === undefined ? 0.5 : a.ir, 0.05); break;
         case 'path':
           if (S.tool === 'node' && S.nodeEdit && S.nodeEdit.sel) {
             const ne = S.nodeEdit;
@@ -5512,9 +5871,10 @@
            <button class="mini" data-a="imgcenter" title="Centrar en el lienzo">Centrar</button>
            <button class="mini" data-a="imgfit" title="Ajustar al lienzo manteniendo proporción">Ajustar</button>
            <button class="mini" data-a="imgreset" title="Restablecer tamaño original">1:1</button></div>`; break;
-        case 'raw': h += `<div class="empty-note" style="padding:4px 0">Grupo: se transforma y anima como conjunto. Usa Objeto → Desagrupar para separarlo.</div>`; break;
+          case 'raw': h += `<div class="empty-note" style="padding:4px 0">Grupo: se transforma y anima como conjunto. Usa Objeto → Desagrupar para separarlo.</div>`; break;
+        }
+        h += pgEnd;
       }
-      h += pgEnd;
 
       const paths = doc.layers.filter(x => x.type === 'path' && x.id !== l.id);
       h += pg('motion', 'Trayectoria de movimiento');
@@ -5581,8 +5941,29 @@
         inp.oninput = () => { editSnap(); l.attrs[inp.dataset.tattr] = inp.value; keyGeom(l); render(); };
       });
       body.querySelectorAll('[data-sattr]').forEach(sel => {
-        sel.onchange = () => { editSnap(); l.attrs[sel.dataset.sattr] = sel.value; render(); renderProps(); };
+        sel.onchange = () => {
+          editSnap();
+          l.attrs[sel.dataset.sattr] = sel.value;
+          if (sel.dataset.sattr === 'ff') loadGoogleFont(sel.value);
+          render(); renderProps();
+        };
       });
+      const btnAddGFont = $('#btnAddGFont');
+      const inpAddGFont = $('#inpAddGFont');
+      if (btnAddGFont && inpAddGFont) {
+        const doLoadGFont = () => {
+          const val = inpAddGFont.value.trim();
+          if (!val) return;
+          loadGoogleFont(val);
+          editSnap();
+          l.attrs.ff = val;
+          render();
+          renderProps();
+          showHint(`Google Font "${val}" cargada y aplicada`);
+        };
+        btnAddGFont.onclick = doLoadGFont;
+        inpAddGFont.onkeydown = e => { if (e.key === 'Enter') doLoadGFont(); };
+      }
       body.querySelectorAll('[data-battr]').forEach(cb => {
         cb.onchange = () => { editSnap(); l.attrs[cb.dataset.battr] = cb.checked; keyGeom(l); render(); };
       });
@@ -5629,6 +6010,7 @@
         nostroke: () => { snapshot(); l.attrs.stroke = ''; render(); renderProps(); },
         fliph: () => flipSel('h'), flipv: () => flipSel('v'), rotl: () => rotateSel(-90), rotr: () => rotateSel(90),
         centerorg: centerOrigin, smooth: smoothSelection, tosimpleshapes: convertToSimpleShapes,
+        topath: () => convertToPath(l),
         nodes: () => {
           setTool('node');
           const l = selLayer();
@@ -5765,7 +6147,7 @@
           if (l.type === 'raw') {
             l = convertToPath(l);
           }
-          if (l && ['path', 'rect', 'ellipse', 'polygon', 'line'].includes(l.type)) {
+          if (l && ['path', 'rect', 'ellipse', 'polygon', 'line', 'text'].includes(l.type)) {
             if (!S.nodeEdit || S.nodeEdit.id !== l.id) enterNodeEdit(l);
           } else {
             S.nodeEdit = null;
@@ -6785,7 +7167,7 @@
         }
         th += `<div class="trow layer-row" data-lid="${l.id}" style="width:${w}px">${agg}</div>`;
         if (exp) {
-          for (const [prop, label] of ANIM_PROPS) {
+          for (const [prop, label] of applicableAnimProps(l)) {
             const ks = la[prop];
             nh += `<div class="tname-row prop-row" data-lid="${l.id}"><span style="flex:1">${label}</span>
           <button class="mini" data-addkf="${l.id}:${prop}" title="Keyframe en t actual">◆+</button></div>`;
@@ -7274,7 +7656,7 @@
     /* ---- SVG estático (fotograma actual) ---- */
     const shouldExportLayer = l => l.visible && (!l.isReference || !l.excludeFromExport);
     function exportStatic() {
-      let s = svgOpen();
+      let s = svgOpen() + googleFontsExportDefs();
       if (doc.defs) s += `<defs>${doc.defs}</defs>`;
       for (const l of doc.layers) { if (shouldExportLayer(l)) s += staticLayerStr(l, S.T); }
       s += '</svg>';
@@ -7433,7 +7815,7 @@
         }
         body += sw.open + `<g id="${gid}">${inner}</g>` + sw.close;
       }
-      const out = svgOpen() + `<style>\n${css}</style>` + (doc.defs ? `<defs>${doc.defs}</defs>` : '') + body + '</svg>';
+      const out = svgOpen() + googleFontsExportDefs() + `<style>\n${css}</style>` + (doc.defs ? `<defs>${doc.defs}</defs>` : '') + body + '</svg>';
       download('animacion-css.svg', out, 'image/svg+xml');
     }
 
@@ -7566,7 +7948,7 @@
         }
         body += smilSceneWrap(l, core);
       }
-      const out = svgOpen() + (doc.defs ? `<defs>${doc.defs}</defs>` : '') + body + '</svg>';
+      const out = svgOpen() + googleFontsExportDefs() + (doc.defs ? `<defs>${doc.defs}</defs>` : '') + body + '</svg>';
       download('animacion-smil.svg', out, 'image/svg+xml');
     }
 
@@ -7740,7 +8122,7 @@
         sh.setAttribute('stroke-dashoffset',1-Math.max(0,Math.min(100,dv))/100)}}
     requestAnimationFrame(frame)}
   requestAnimationFrame(frame);`;
-      const out = svgOpen('vmroot') + (doc.defs ? `<defs>${doc.defs}</defs>` : '') + body
+      const out = svgOpen('vmroot') + googleFontsExportDefs() + (doc.defs ? `<defs>${doc.defs}</defs>` : '') + body
         + `<script><![CDATA[${engine}]]><\/script></svg>`;
       download('animacion-js.svg', out, 'image/svg+xml');
     }
@@ -8072,7 +8454,7 @@
 <style>body{margin:0;display:grid;place-items:center;min-height:100vh;background:#16171c}</style>
 </head>
 <body>
-${svgOpen()}${doc.defs ? `<defs>${doc.defs}</defs>` : ''}${body}</svg>
+${svgOpen()}${googleFontsExportDefs()}${doc.defs ? `<defs>${doc.defs}</defs>` : ''}${body}</svg>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"><\/script>
 ${needMotion ? `<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/MotionPathPlugin.min.js"><\/script>\n` : ''}<script>
 ${needMotion ? 'gsap.registerPlugin(MotionPathPlugin);\n' : ''}// Timeline generada por VectorMotion — duración ${doc.dur}s, bucle infinito
