@@ -1516,7 +1516,7 @@
     <div class="menu-wrap">
       <button id="btnImport" title="Importar archivos o abrir proyecto">📂 Importar ▾</button>
       <div class="menu" id="importMenu">
-        <button data-import-type="project">Abrir proyecto (.json)</button>
+        <button data-import-type="project" title="Abrir proyecto (.json) (Ctrl+O)">Abrir proyecto (.json)<span style="margin-left:auto;opacity:0.6;font-size:11px;padding-left:12px;">Ctrl+O</span></button>
         <hr>
         <button data-import-type="vector">Archivo vectorial (SVG, Lottie JSON)</button>
         <button data-import-type="bitmap">Imagen de referencia / Calco (PNG, JPG, WebP...)</button>
@@ -6620,6 +6620,7 @@
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') { e.preventDefault(); e.shiftKey ? ungroupSelection() : groupSelection(); return; }
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'b') { e.preventDefault(); convertToSimpleShapes(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(!fileHandle); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') { e.preventDefault(); openProject(); return; }
       switch (e.key) {
         case 'v': case 'V': setTool('select'); break;
         case 'a': case 'A': setTool('node'); break;
@@ -8476,7 +8477,7 @@ ${lines.join('\n')}
       closeTopMenus();
       const type = b.dataset.importType;
       if (type === 'project') {
-        $('#fileProject').click();
+        openProject();
       } else if (type === 'vector') {
         const inp = $('#fileImport');
         inp.accept = '.svg,.json,.lottie';
